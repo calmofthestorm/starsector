@@ -13,13 +13,12 @@ keywords = ["orgmode", "parser", "emacs"]
 default = ["headline-parser", "orgize-integration"]
 
 # Parses and emits keywords, tags, priority, comment, and title.
-headline-parser = ["regex", "lazy_static"]
+headline-parser = ["regex", "lazy_static", "nom"]
 
 # Uses Orgize to parse the properties and planning line.
 orgize-integration = ["orgize", "headline-parser", "indexmap"]
 
 [dependencies]
-chrono = "0"
 hex = "0"
 indexmap = { version = "1", optional = true}
 indextree = "4"
@@ -28,7 +27,7 @@ itertools = "0"
 lazy_static = { version = "1", optional = true}
 log = "0"
 memchr = "2"
-nom = "5"
+nom = { version = "5", optional = true }
 orgize = { version = "0", optional = true, features = ["chrono", "indexmap"]}
 rand = "0.7.2"
 regex = {version = "1", optional = true}
