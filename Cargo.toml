@@ -1,6 +1,6 @@
 [package]
 name = "starsector"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Alex Roper <alex@aroper.net>"]
 edition = "2018"
 description = "Org mode structural parser/emitter with an emphasis on modularity and avoiding edits unrelated to changes."

@@ -57,34 +57,16 @@ impl Section {
     }
 
     pub fn set_headline(self, arena: &mut Arena, headline: &Headline) -> Result<(), HeadlineError> {
-        match arena.new_section(headline.to_rope()) {
-            None => Err(HeadlineError::NonEquivalentReparseError),
-            Some(section) => {
-                if let Some(parent) = self.parent(arena) {
-                    if parent.level(arena) >= section.level(arena) {
-                        // FIXME: structureerror
-                        return Err(HeadlineError::InvalidLevelError);
-                    }
-                }
-
-                // FIXME: Refactor
-                *arena.arena[self.id].get_mut() = std::mem::take(arena.arena[section.id].get_mut());
-                section.id.remove(&mut arena.arena);
-
-                Ok(())
-            }
-        }
+        self.set_raw(arena, headline.to_rope())
     }
 
     pub fn set_level(self, arena: &mut Arena, level: u16) -> Result<(), StructureError> {
-        if let Some(parent) = self.parent(arena) {
-            if parent.level(arena) >= level {
-                return Err(StructureError::LevelError);
-            }
+        if self.level_change_ok(arena, level) {
+            arena.set_level(self, level);
+            Ok(())
+        } else {
+            Err(StructureError::LevelError)
         }
-
-        arena.set_level(self, level);
-        Ok(())
     }
 
     pub fn set_raw(self, arena: &mut Arena, raw: Rope) -> Result<(), HeadlineError> {
@@ -94,19 +76,49 @@ impl Section {
                 Err(HeadlineError::InvalidBodyError)
             }
             Some(section) => {
-                if let Some(parent) = self.parent(arena) {
-                    if parent.level(arena) >= section.level(arena) {
-                        // FIXME: structureerror
-                        return Err(HeadlineError::InvalidLevelError);
-                    }
+                if self.level_change_ok(arena, section.level(&arena)) {
+                    // FIXME: Refactor
+                    *arena.arena[self.id].get_mut() =
+                        std::mem::take(arena.arena[section.id].get_mut());
+                    section.id.remove(&mut arena.arena);
+                    Ok(())
+                } else {
+                    Err(HeadlineError::InvalidLevelError)
                 }
-
-                // FIXME: Refactor
-                *arena.arena[self.id].get_mut() = std::mem::take(arena.arena[section.id].get_mut());
-                section.id.remove(&mut arena.arena);
-                Ok(())
             }
         }
+    }
+
+    fn level_change_ok(self, arena: &mut Arena, level: u16) -> bool {
+        let old_level = self.level(arena);
+
+        // Nothing to do.
+        if old_level == level {
+            return true;
+        }
+
+        // Cannot change to/from root section using this function.
+        if old_level == 0 || level == 0 {
+            return false;
+        }
+
+        if let Some(parent) = self.parent(arena) {
+            if parent.level(arena) >= level {
+                // FIXME: Better errors; need to handle both structure and
+                // headline. Or unify or something.
+                return false;
+            }
+        }
+
+        for child in self.children(arena) {
+            if child.level(arena) <= level {
+                // FIXME: Better errors; need to handle both structure and
+                // headline. Or unify or something.
+                return false;
+            }
+        }
+
+        true
     }
 }
 
@@ -252,4 +264,80 @@ impl HeadlinePod {
 // child headlines).
 pub fn parse_valid_single_headline(text: RopeSlice, context: &Context) -> Headline {
     crate::parser::headline::parse_headline(text, context).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Tests that you can change the level/text iff legal.
+    #[test]
+    fn text_level_sync() {
+        let mut arena = Arena::default();
+
+        let mut h1 = HeadlineBuilder::default();
+        h1.title("Bees".into());
+        h1.level(1);
+        let h1 = h1.headline(/*context=*/ None).unwrap();
+
+        let mut h4 = HeadlineBuilder::default();
+        h4.title("Wasps".into());
+        h4.level(4);
+        let h4 = h4.headline(/*context=*/ None).unwrap();
+
+        // Root section is always level 0, and cannot be changed.
+        let doc = arena.parse_str("Hello");
+        assert_eq!(doc.root.text(&arena), "Hello");
+        assert_eq!(doc.root.level(&arena), 0);
+        doc.root.set_level(&mut arena, 0).unwrap();
+        assert!(doc.root.set_level(&mut arena, 1).is_err());
+        assert!(doc.root.set_level(&mut arena, 4).is_err());
+        assert!(doc.root.set_raw(&mut arena, "World".into()).is_ok());
+        assert!(doc.root.set_raw(&mut arena, "* World".into()).is_err());
+        assert!(doc.root.set_headline(&mut arena, &h1).is_err());
+        assert!(doc.root.set_headline(&mut arena, &h4).is_err());
+
+        let doc = arena.parse_str("* Hello\n*** World");
+        let hello = doc.root.children(&arena).next().unwrap();
+        let world = hello.children(&arena).next().unwrap();
+        assert_eq!(world.text(&arena), "*** World");
+
+        assert!(world.set_level(&mut arena, 2).is_ok());
+        assert_eq!(world.text(&arena), "** World");
+        assert!(world.set_level(&mut arena, 1).is_err());
+        assert!(world.set_level(&mut arena, 5).is_ok());
+        assert_eq!(world.text(&arena), "***** World");
+
+        assert!(world.set_raw(&mut arena, "Waterworld".into()).is_err());
+        assert!(world.set_raw(&mut arena, "** Westworld".into()).is_ok());
+        assert_eq!(world.level(&arena), 2);
+        assert!(world.set_raw(&mut arena, "* World".into()).is_err());
+
+        assert!(world.set_headline(&mut arena, &h1).is_err());
+        assert!(world.set_headline(&mut arena, &h4).is_ok());
+        assert_eq!(world.level(&arena), 4);
+        assert_eq!(world.text(&arena), "**** Wasps");
+
+        assert!(hello.set_level(&mut arena, 0).is_err());
+        assert!(hello.set_level(&mut arena, 1).is_ok());
+        assert!(hello.set_level(&mut arena, 2).is_ok());
+        assert!(hello.set_level(&mut arena, 3).is_ok());
+        assert!(hello.set_level(&mut arena, 4).is_err());
+        assert_eq!(hello.level(&arena), 3);
+
+        assert!(hello.set_headline(&mut arena, &h4).is_err());
+        assert!(hello.set_headline(&mut arena, &h1).is_ok());
+        assert_eq!(hello.level(&arena), 1);
+        assert_eq!(hello.text(&arena), "* Bees");
+
+        assert!(hello.set_raw(&mut arena, "Waterworld".into()).is_err());
+        assert!(hello.set_raw(&mut arena, "* Waterworld".into()).is_ok());
+        assert_eq!(hello.level(&arena), 1);
+        assert_eq!(hello.text(&arena), "* Waterworld");
+        assert!(hello.set_raw(&mut arena, "** Waterworld".into()).is_ok());
+        assert_eq!(hello.level(&arena), 2);
+        assert!(hello.set_raw(&mut arena, "*** Waterworld".into()).is_ok());
+        assert_eq!(hello.level(&arena), 3);
+        assert!(hello.set_raw(&mut arena, "**** Waterworld".into()).is_err());
+    }
 }
