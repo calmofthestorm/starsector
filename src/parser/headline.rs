@@ -1,9 +1,11 @@
 use nom::{
+    branch::alt,
     bytes::complete::{tag, take_till, take_while},
     character::complete::{char, one_of, space0},
     combinator::verify,
     error::{make_error, ErrorKind},
-    sequence::{delimited, preceded},
+    multi::many0,
+    sequence::{delimited, pair, preceded, separated_pair, terminated},
     Err, IResult,
 };
 use ropey::{Rope, RopeSlice};
@@ -75,14 +77,86 @@ fn parse_tags(input: &str) -> IResult<&str, &str, ()> {
     ))
 }
 
-// Parse the title line of a headline starting at text. Does not parse planning,
-// properties, the body, or child headlines -- just the title line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlanningKeyword {
+    Deadline,
+    Scheduled,
+    Closed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InfoPattern {
+    pub keyword: PlanningKeyword,
+    // ELDRITCH parse timestamp
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct Planning {
+    pub deadline: Option<String>,
+    pub scheduled: Option<String>,
+    pub closed: Option<String>,
+}
+
+fn parse_planning_keyword(input: &str) -> IResult<&str, PlanningKeyword, ()> {
+    if input.starts_with("DEADLINE:") {
+        Ok((&input[8..], PlanningKeyword::Deadline))
+    } else if input.starts_with("SCHEDULED:") {
+        Ok((&input[9..], PlanningKeyword::Scheduled))
+    } else if input.starts_with("CLOSED:") {
+        Ok((&input[6..], PlanningKeyword::Closed))
+    } else {
+        return Err(nom::Err::Error(()));
+    }
+}
+
+fn parse_info_pattern(input: &str) -> IResult<&str, InfoPattern, ()> {
+    separated_pair(
+        parse_planning_keyword,
+        pair(char(':'), space0),
+        tag("<timestamp>"),
+    )(input)
+    .map(|(rest, (keyword, timestamp))| {
+        let info = InfoPattern {
+            keyword,
+            timestamp: timestamp.to_string(),
+        };
+        (rest, info)
+    })
+}
+
+// Matches a single line that is the planning line.
+fn parse_planning_line(input: &str) -> Option<Planning> {
+    match preceded(space0, many0(terminated(parse_info_pattern, space0)))(input) {
+        // A planning line needs to have at least one info pattern to be
+        // considered a planning line rather than part of the body.
+        Ok((_rest, infos)) if !infos.is_empty() => {
+            let mut planning = Planning::default();
+            for info in infos {
+                // Per Org spec, in case of duplicates, keep the final.
+                match info.keyword {
+                    PlanningKeyword::Closed => {
+                        planning.closed = Some(info.timestamp);
+                    }
+                    PlanningKeyword::Scheduled => {
+                        planning.scheduled = Some(info.timestamp);
+                    }
+                    PlanningKeyword::Deadline => {
+                        planning.deadline = Some(info.timestamp);
+                    }
+                }
+            }
+            Some(planning)
+        }
+        // FIXME: All these should distinguish nom error from failure.
+        _ => None,
+    }
+}
+
+// Parse the title line of a headline starting at text. Also parses planning and
+// properties drawer, but not the body or child headlines,
 pub(crate) fn parse_headline(input: RopeSlice, context: &Context) -> Option<Headline> {
-    let (headline_rope, body) = crate::parser::structure::line(&input);
-    let body = match body.get_char(0) {
-        Some('\n') => body.slice(1..),
-        _ => body,
-    };
+    let (headline_rope, body) = crate::parser::structure::consuming_line(&input);
 
     // FIXME: Nom does support streaming, so at least in theory it's possible to
     // parse ropes directly.
@@ -121,6 +195,18 @@ pub(crate) fn parse_headline(input: RopeSlice, context: &Context) -> Option<Head
             (false, title)
         };
 
+    // Attempt to parse a planning line out of the body.
+    // ELDRITCH
+    // let (planning_line, remaining_body) = crate::parser::structure::consuming_line(&body);
+    // let (planning, body) = match parse_planning_line(&planning_line.to_string()) {
+    //     Some(planning) => (Some(planning), remaining_body),
+    //     None => (None, body),
+    // };
+
+    // Regardless of whether we parsed the planning line, attempt to parse a properties drawer.
+    // ELDRITCH
+    // let (properties, body) = parse_properties_drawer(body);
+
     Some(Headline(HeadlinePod {
         level,
         commented,
@@ -131,4 +217,76 @@ pub(crate) fn parse_headline(input: RopeSlice, context: &Context) -> Option<Head
         raw_tags_rope,
         body: body.into(),
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_planning_keyword() {
+        assert_eq!(
+            parse_planning_keyword("DEADLINE:").unwrap().1,
+            PlanningKeyword::Deadline
+        );
+        assert_eq!(
+            parse_planning_keyword("SCHEDULED:").unwrap().1,
+            PlanningKeyword::Scheduled
+        );
+        assert_eq!(
+            parse_planning_keyword("CLOSED:").unwrap().1,
+            PlanningKeyword::Closed
+        );
+        assert!(parse_planning_keyword("CLOSED :").is_err());
+        assert!(parse_planning_keyword(" SCHEDULED :").is_err());
+        assert!(parse_planning_keyword("idk lol").is_err());
+        assert!(parse_planning_keyword(" DEADLINE:").is_err());
+    }
+
+    #[test]
+    fn test_parse_info_pattern() {
+        let pattern = parse_info_pattern("DEADLINE: <timestamp>").unwrap().1;
+        assert_eq!(pattern.keyword, PlanningKeyword::Deadline);
+
+        let pattern = parse_info_pattern("SCHEDULED:<timestamp>").unwrap().1;
+        assert_eq!(pattern.keyword, PlanningKeyword::Scheduled);
+
+        let pattern = parse_info_pattern("CLOSED:  <timestamp>     ").unwrap().1;
+        assert_eq!(pattern.keyword, PlanningKeyword::Closed);
+
+        assert!(parse_info_pattern(" CLOSED: <timestamp>").is_err());
+        assert!(parse_info_pattern("Closed: <timestamp>").is_err());
+        assert!(parse_info_pattern(" ").is_err());
+    }
+
+    #[test]
+    fn test_parse_planning_line() {
+        let planning = parse_planning_line("DEADLINE: <timestamp>DEADLINE: <timestamp>").unwrap();
+        assert_eq!(planning.deadline.unwrap(), "<timestamp>");
+        assert!(planning.scheduled.is_none());
+        assert!(planning.closed.is_none());
+
+        let planning = parse_planning_line("SCHEDULED: <timestamp> DEADLINE: <timestamp>").unwrap();
+        assert_eq!(planning.deadline.unwrap(), "<timestamp>");
+        assert_eq!(planning.scheduled.unwrap(), "<timestamp>");
+        assert!(planning.closed.is_none());
+
+        let planning = parse_planning_line("CLOSED: <timestamp>").unwrap();
+        assert_eq!(planning.closed.unwrap(), "<timestamp>");
+        assert!(planning.scheduled.is_none());
+        assert!(planning.deadline.is_none());
+
+        let planning = parse_planning_line(
+            "  DEADLINE: <timestamp> SCHEDULED: <timestamp> CLOSED: <timestamp>   ",
+        )
+        .unwrap();
+        assert_eq!(planning.closed.unwrap(), "<timestamp>");
+        assert_eq!(planning.deadline.unwrap(), "<timestamp>");
+        assert_eq!(planning.scheduled.unwrap(), "<timestamp>");
+
+        assert!(parse_planning_line("").is_none());
+        assert!(parse_planning_line(" ").is_none());
+        assert!(parse_planning_line("ESCHEDULED: <timestamp>").is_none());
+        assert!(parse_planning_line("DEADLINE <timestamp>").is_none());
+    }
 }
