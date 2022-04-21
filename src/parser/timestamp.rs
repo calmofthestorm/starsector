@@ -32,17 +32,17 @@ fn parse_integer_1_2(input: &str) -> IResult<&str, u8, ()> {
     })(input)
 }
 
-// fn parse_dayname(input: &str) -> IResult<&str, &str, ()> {
-//     let (input, dayname) = verify(
-//         take_while1(|c: char| !c.is_whitespace() && c != '>' && c != ']'),
-//         |dayname: &str| {
-//             !dayname
-//                 .chars()
-//                 .any(|c| c.is_ascii_digit() || c == '+' || c == '-')
-//         },
-//     )(input)?;
-//     Ok((input, dayname))
-// }
+fn parse_dayname(input: &str) -> IResult<&str, &str, ()> {
+    let (input, dayname) = verify(
+        take_while1(|c: char| !c.is_whitespace() && c != '>' && c != ']'),
+        |dayname: &str| {
+            !dayname
+                .chars()
+                .any(|c| c.is_ascii_digit() || c == '+' || c == '-')
+        },
+    )(input)?;
+    Ok((input, dayname))
+}
 
 impl Time {
     pub(crate) fn parse(input: &str) -> IResult<&str, Time, ()> {
@@ -134,133 +134,105 @@ impl Repeater {
     }
 }
 
-// impl TryFrom<&str> for Repeater {
-//     type Error = ();
-//     fn try_from(input: &str) -> Result<Self, Self::Error> {
-//         try_from_helper::<Self>(Self::parse(input))
-//     }
-// }
+impl Delay {
+    fn parse(input: &str) -> IResult<&str, Delay, ()> {
+        let (input, mark) = DelayMark::parse(input)?;
+        let (input, interval) = Interval::parse(input)?;
+        Ok((input, Delay { mark, interval }))
+    }
+}
 
-// impl Parse for Delay {
-//     fn parse(input: &str) -> IResult<&str, Delay, ()> {
-//         let (input, mark) = DelayMark::parse(input)?;
-//         let (input, interval) = Interval::parse(input)?;
-//         Ok((input, Delay { mark, interval }))
-//     }
-// }
+impl RepeaterAndDelay {
+    fn parse(input: &str) -> IResult<&str, RepeaterAndDelay, ()> {
+        let (input, repeater, delay) = if let Ok((input, (repeater, delay))) =
+            pair(Repeater::parse, preceded(space1, Delay::parse))(input)
+        {
+            (input, Some(repeater), Some(delay))
+        } else if let Ok((input, (delay, repeater))) =
+            pair(Delay::parse, preceded(space1, Repeater::parse))(input)
+        {
+            (input, Some(repeater), Some(delay))
+        } else if let Ok((input, delay)) = Delay::parse(input) {
+            (input, None, Some(delay))
+        } else if let Ok((input, repeater)) = Repeater::parse(input) {
+            (input, Some(repeater), None)
+        } else {
+            (input, None, None)
+        };
+        Ok((input, RepeaterAndDelay { repeater, delay }))
+    }
+}
 
-// impl TryFrom<&str> for Delay {
-//     type Error = ();
-//     fn try_from(input: &str) -> Result<Self, Self::Error> {
-//         try_from_helper::<Self>(Self::parse(input))
-//     }
-// }
+impl Date {
+    fn parse(input: &str) -> IResult<&str, Date, ()> {
+        let (input, (year, month, day)) = tuple((
+            parse_integer_4,
+            preceded(char('-'), parse_integer_2),
+            preceded(char('-'), parse_integer_2),
+        ))(input)?;
+        let (input, _dayname) = opt(preceded(space1, parse_dayname))(input)?;
+        Ok((
+            input,
+            NaiveDate::from_ymd(year as i32, month as u32, day as u32).into(),
+        ))
+    }
+}
 
-// impl Parse for RepeaterAndDelay {
-//     fn parse(input: &str) -> IResult<&str, RepeaterAndDelay, ()> {
-//         let (input, repeater, delay) = if let Ok((input, (repeater, delay))) =
-//             pair(Repeater::parse, preceded(space1, Delay::parse))(input)
-//         {
-//             (input, Some(repeater), Some(delay))
-//         } else if let Ok((input, (delay, repeater))) =
-//             pair(Delay::parse, preceded(space1, Repeater::parse))(input)
-//         {
-//             (input, Some(repeater), Some(delay))
-//         } else if let Ok((input, delay)) = Delay::parse(input) {
-//             (input, None, Some(delay))
-//         } else if let Ok((input, repeater)) = Repeater::parse(input) {
-//             (input, Some(repeater), None)
-//         } else {
-//             (input, None, None)
-//         };
-//         Ok((input, RepeaterAndDelay { repeater, delay }))
-//     }
-// }
+fn parse_atomic_timestamp(input: &str) -> IResult<&str, (Point, Option<Time>), ()> {
+    // Annoying, but we want to allow RepeaterAndDelay to be parsed in
+    // isolation, but also to be empty, and it needs a leading space iff
+    // non-empty.
+    let inner = |active: Activity| {
+        map(
+            tuple((
+                Date::parse,
+                opt(preceded(space1, TimeSpec::parse)),
+                terminated(
+                    alt((
+                        verify(preceded(space1, RepeaterAndDelay::parse), |rad| {
+                            rad.repeater.is_some() || rad.delay.is_some()
+                        }),
+                        verify(RepeaterAndDelay::parse, |rad| {
+                            rad.repeater.is_none() && rad.delay.is_none()
+                        }),
+                    )),
+                    opt(is_not(">]\n")),
+                ),
+            )),
+            move |(date, time, cookie)| {
+                let (start, end) = match time {
+                    None => (None, None),
+                    Some(TimeSpec::Time(start)) => (Some(start), None),
+                    Some(TimeSpec::Times(Times(start, end))) => (Some(start), Some(end)),
+                };
+                (
+                    Point {
+                        active,
+                        date,
+                        cookie,
+                        time: start,
+                    },
+                    end,
+                )
+            },
+        )
+    };
 
-// impl TryFrom<&str> for RepeaterAndDelay {
-//     type Error = ();
-//     fn try_from(input: &str) -> Result<Self, Self::Error> {
-//         try_from_helper::<Self>(Self::parse(input))
-//     }
-// }
+    terminated(
+        alt((
+            preceded(tag("<"), inner(Activity::Active)),
+            preceded(tag("["), inner(Activity::Inactive)),
+        )),
+        one_of("]>"),
+    )(input)
+}
 
-// impl Parse for Date {
-//     fn parse(input: &str) -> IResult<&str, Date, ()> {
-//         let (input, (year, month, day)) = tuple((
-//             parse_integer_4,
-//             preceded(char('-'), parse_integer_2),
-//             preceded(char('-'), parse_integer_2),
-//         ))(input)?;
-//         let (input, _dayname) = opt(preceded(space1, parse_dayname))(input)?;
-//         Ok((
-//             input,
-//             NaiveDate::from_ymd(year as i32, month as u32, day as u32).into(),
-//         ))
-//     }
-// }
-
-// impl TryFrom<&str> for Date {
-//     type Error = ();
-//     fn try_from(input: &str) -> Result<Self, Self::Error> {
-//         try_from_helper::<Self>(Self::parse(input))
-//     }
-// }
-
-// fn parse_atomic_timestamp(input: &str) -> IResult<&str, (Point, Option<Time>), ()> {
-//     // Annoying, but we want to allow RepeaterAndDelay to be parsed in
-//     // isolation, but also to be empty, and it needs a leading space iff
-//     // non-empty.
-//     let inner = |active: Activity| {
-//         map(
-//             tuple((
-//                 Date::parse,
-//                 opt(preceded(space1, TimeSpec::parse)),
-//                 terminated(
-//                     alt((
-//                         verify(preceded(space1, RepeaterAndDelay::parse), |rad| {
-//                             rad.repeater.is_some() || rad.delay.is_some()
-//                         }),
-//                         verify(RepeaterAndDelay::parse, |rad| {
-//                             rad.repeater.is_none() && rad.delay.is_none()
-//                         }),
-//                     )),
-//                     opt(is_not(">]\n")),
-//                 ),
-//             )),
-//             move |(date, time, cookie)| {
-//                 let (start, end) = match time {
-//                     None => (None, None),
-//                     Some(TimeSpec::Time(start)) => (Some(start), None),
-//                     Some(TimeSpec::Times(Times(start, end))) => (Some(start), Some(end)),
-//                 };
-//                 (
-//                     Point {
-//                         active,
-//                         date,
-//                         cookie,
-//                         time: start,
-//                     },
-//                     end,
-//                 )
-//             },
-//         )
-//     };
-
-//     terminated(
-//         alt((
-//             preceded(tag("<"), inner(Activity::Active)),
-//             preceded(tag("["), inner(Activity::Inactive)),
-//         )),
-//         one_of("]>"),
-//     )(input)
-// }
-
-// impl Parse for Point {
-//     fn parse(input: &str) -> IResult<&str, Point, ()> {
-//         let (input, (point, _none)) = verify(parse_atomic_timestamp, |(_, e)| e.is_none())(input)?;
-//         Ok((input, point))
-//     }
-// }
+impl Point {
+    fn parse(input: &str) -> IResult<&str, Point, ()> {
+        let (input, (point, _none)) = verify(parse_atomic_timestamp, |(_, e)| e.is_none())(input)?;
+        Ok((input, point))
+    }
+}
 
 // impl TryFrom<&str> for Point {
 //     type Error = ();
@@ -588,128 +560,165 @@ mod tests {
         assert!(Interval::parse("+6h ").is_err());
 
         for bad in &["+++5w", "", "-7m"] {
-            eprintln!("Foo {}", bad);
             assert!(Repeater::parse(*bad).is_err());
         }
     }
 
-    //     #[test]
-    //     fn test_parse_delay() {
-    //         let delay = |m: &str, i: &str| Some(Repeater::new(m, i));
-    //         assert_eq!("+5h".try_into().ok(), delay("+", "5h"));
-    //         assert_eq!(".+7y".try_into().ok(), delay(".+", "7y"));
-    //         assert_eq!("++0m".try_into().ok(), delay("++", "0m"));
+    #[test]
+    fn test_parse_delay() {
+        let delay = |m: &str, i: &str| {
+            Delay::new(
+                DelayMark::parse(m).unwrap().1,
+                Interval::parse(i).unwrap().1,
+            )
+        };
+        assert_eq!(Delay::parse("-5h").unwrap().1, delay("-", "5h"));
+        assert_eq!(Delay::parse("--7y").unwrap().1, delay("--", "7y"));
+        assert_eq!(Delay::parse("--0m").unwrap().1, delay("--", "0m"));
 
-    //         for bad in &["---5w", "", "-6h ", "+7m"] {
-    //             assert!(Delay::try_from(*bad).is_err());
-    //         }
-    //     }
+        let res = Delay::parse("-6h ").unwrap();
+        assert_eq!(" ", res.0);
+        assert_eq!(Delay::parse("-6h").unwrap().1, res.1);
 
-    //     #[test]
-    //     fn test_parse_repeater_and_delay() {
-    //         let repeater = Some(Repeater::new("+", "5d"));
-    //         let delay = Some(Delay::new("--", "7w"));
+        for bad in &["---5w", "", "+7m"] {
+            assert!(Delay::parse(*bad).is_err());
+        }
+    }
 
-    //         assert_eq!(
-    //             "+5d --7w".try_into().ok(),
-    //             Some(RepeaterAndDelay { repeater, delay })
-    //         );
+    #[test]
+    fn test_parse_repeater_and_delay() {
+        let repeater = Some(Repeater::new(
+            RepeaterMark::Cumulate,
+            Interval::new(5, TimeUnit::Day),
+        ));
+        let delay = Some(Delay::new(
+            DelayMark::First,
+            Interval::new(7, TimeUnit::Week),
+        ));
 
-    //         assert_eq!(
-    //             "--7w +5d".try_into().ok(),
-    //             Some(RepeaterAndDelay { repeater, delay })
-    //         );
+        assert_eq!(
+            RepeaterAndDelay::parse("+5d --7w").unwrap().1,
+            RepeaterAndDelay { repeater, delay }
+        );
 
-    //         assert_eq!(
-    //             "--7w \t+5d".try_into().ok(),
-    //             Some(RepeaterAndDelay { repeater, delay })
-    //         );
+        assert_eq!(
+            RepeaterAndDelay::parse("--7w +5d").unwrap().1,
+            RepeaterAndDelay { repeater, delay }
+        );
 
-    //         assert_eq!(
-    //             "+5d".try_into().ok(),
-    //             Some(RepeaterAndDelay {
-    //                 repeater,
-    //                 delay: None
-    //             })
-    //         );
+        assert_eq!(
+            RepeaterAndDelay::parse("--7w \t+5d").unwrap().1,
+            RepeaterAndDelay { repeater, delay }
+        );
 
-    //         assert_eq!(
-    //             "--7w".try_into().ok(),
-    //             Some(RepeaterAndDelay {
-    //                 repeater: None,
-    //                 delay
-    //             })
-    //         );
+        assert_eq!(
+            RepeaterAndDelay::parse("+5d").unwrap().1,
+            RepeaterAndDelay {
+                repeater,
+                delay: None
+            }
+        );
 
-    //         assert_eq!(
-    //             "".try_into().ok(),
-    //             Some(RepeaterAndDelay {
-    //                 repeater: None,
-    //                 delay: None
-    //             })
-    //         );
+        assert_eq!(
+            RepeaterAndDelay::parse("--7w").unwrap().1,
+            RepeaterAndDelay {
+                repeater: None,
+                delay
+            }
+        );
 
-    //         for bad in &["---5w", "-6h ", "+7m "] {
-    //             assert!(RepeaterAndDelay::try_from(*bad).is_err());
-    //         }
-    //     }
+        assert_eq!(
+            RepeaterAndDelay::parse("").unwrap().1,
+            RepeaterAndDelay {
+                repeater: None,
+                delay: None
+            }
+        );
 
-    //     #[test]
-    //     fn test_parse_date() {
-    //         let date = |y, m, d| Some(Date::from(NaiveDate::from_ymd(y, m, d)));
+        let res = RepeaterAndDelay::parse("---5w").unwrap();
+        assert_eq!("---5w", res.0);
+        assert_eq!(RepeaterAndDelay::parse("").unwrap().1, res.1);
 
-    //         assert_eq!("2020-01-10".try_into().ok(), date(2020, 1, 10));
-    //         assert_eq!("2020-01-10 Fri".try_into().ok(), date(2020, 1, 10));
-    //         assert_eq!("2020-01-10 Sat".try_into().ok(), date(2020, 1, 10));
-    //         assert_eq!("2020-01-10  Zeepsday".try_into().ok(), date(2020, 1, 10));
+        let res = RepeaterAndDelay::parse("-6h ").unwrap();
+        assert_eq!(" ", res.0);
+        assert_eq!(RepeaterAndDelay::parse("-6h").unwrap().1, res.1);
 
-    //         assert_eq!("0020-01-10".try_into().ok(), date(0020, 1, 10));
+        let res = RepeaterAndDelay::parse("+7m ").unwrap();
+        assert_eq!(" ", res.0);
+        assert_eq!(RepeaterAndDelay::parse("+7m").unwrap().1, res.1);
+    }
 
-    //         for bad in &[
-    //             "2020-02-02 ",
-    //             " 2020-02-02",
-    //             "2020",
-    //             "",
-    //             "20200110",
-    //             "20200110 3:14",
-    //             "5",
-    //             "202-05-05",
-    //             "-1986-08-24",
-    //             "1987-5-29",
-    //             "1987-03-1",
-    //         ] {
-    //             assert!(Date::try_from(*bad).is_err());
-    //         }
-    //     }
+    #[test]
+    fn test_parse_date() {
+        let date = |y, m, d| Date::new(y, m, d);
 
-    //     #[test]
-    //     fn test_parse_point() {
-    //         let point = Point::new("2020-01-01".try_into().unwrap());
+        assert_eq!(Date::parse("2020-01-10").unwrap().1, date(2020, 1, 10));
+        assert_eq!(Date::parse("2020-01-10 Fri").unwrap().1, date(2020, 1, 10));
+        assert_eq!(Date::parse("2020-01-10 Sat").unwrap().1, date(2020, 1, 10));
+        assert_eq!(
+            Date::parse("2020-01-10  Zeepsday").unwrap().1,
+            date(2020, 1, 10)
+        );
+        assert_eq!(Date::parse("2020-02-17 Zee").unwrap().1, date(2020, 2, 17));
 
-    //         assert_eq!("<2020-01-01>".try_into().ok(), Some(point));
-    //         assert_eq!("<2020-01-01   Mon>".try_into().ok(), Some(point));
-    //         assert_eq!(
-    //             "[2020-01-01   Mon 03:57  --1d .+1w]".try_into().ok(),
-    //             Some(
-    //                 point
-    //                     .with_repeater(Some(".+1w"))
-    //                     .with_delay(Some("--1d"))
-    //                     .with_active(false)
-    //                     .with_time(Some("3:57"))
-    //             )
-    //         );
+        assert_eq!(Date::parse("0020-01-10").unwrap().1, date(0020, 1, 10));
 
-    //         for bad in &[
-    //             "<2020-01-01>--<2020-02-01>",
-    //             "",
-    //             "<2020-01-01> ",
-    //             "2020-01-01",
-    //             "<%%(hi)>",
-    //             "[2020-01-01 01:00-02:00]",
-    //         ] {
-    //             assert!(Point::try_from(*bad).is_err());
-    //         }
-    //     }
+        for bad in &[
+            " 2020-02-02",
+            "2020",
+            "",
+            "20200110",
+            "20200110 3:14",
+            "5",
+            "202-05-05",
+            "-1986-08-24",
+            "1987-5-29",
+            "1987-03-1",
+        ] {
+            assert!(Date::parse(*bad).is_err());
+        }
+
+        let res = Date::parse("2020-02-02 ").unwrap();
+        assert_eq!(" ", res.0);
+        assert_eq!(Date::parse("2020-02-02").unwrap().1, res.1);
+    }
+
+    #[test]
+    fn test_parse_point() {
+        let point = Point::new(Date::new(2020, 1, 1));
+
+        assert_eq!(Point::parse("<2020-01-01>").unwrap().1, point);
+        assert_eq!(Point::parse("<2020-01-01   Mon>").unwrap().1, point);
+        assert_eq!(
+            Point::parse("[2020-01-01   Mon 03:57  --1d .+1w]")
+                .unwrap()
+                .1,
+            point
+                .with_repeater(Some(Repeater::new(
+                    RepeaterMark::Restart,
+                    Interval::new(1, TimeUnit::Week)
+                )))
+                .with_delay(Some(Delay::new(
+                    DelayMark::First,
+                    Interval::new(1, TimeUnit::Day)
+                )))
+                .with_active(false)
+                .with_time(Some(Time::new(3, 57)))
+        );
+
+        for bad in &["", "2020-01-01", "<%%(hi)>", "[2020-01-01 01:00-02:00]"] {
+            eprintln!("This {}", bad);
+            assert!(Point::parse(*bad).is_err());
+        }
+
+        let res = Point::parse("<2020-01-01> ").unwrap();
+        assert_eq!(" ", res.0);
+        assert_eq!(Point::parse("<2020-01-01>").unwrap().1, res.1);
+
+        let res = Point::parse("<2020-01-01>--<2020-02-01>").unwrap();
+        assert_eq!("--<2020-02-01>", res.0);
+        assert_eq!(Point::parse("<2020-01-01>").unwrap().1, res.1);
+    }
 
     //     #[test]
     //     fn test_parse_range() {

@@ -410,6 +410,12 @@ impl TimeSpec {
     }
 }
 
+impl Date {
+    pub fn new(year: i32, month: u32, day: u32) -> Date {
+        NaiveDate::from_ymd(year.into(), month.into(), day.into()).into()
+    }
+}
+
 impl Point {
     pub fn new(date: Date) -> Point {
         Point {
