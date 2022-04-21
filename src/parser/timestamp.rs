@@ -241,14 +241,14 @@ impl Point {
 //     }
 // }
 
-// impl Parse for Range {
-//     fn parse(input: &str) -> IResult<&str, Range, ()> {
-//         let (input, (start, mut end)) =
-//             separated_pair(Point::parse, tag("--"), Point::parse)(input)?;
-//         end.active = start.active;
-//         Ok((input, Range { start, end }))
-//     }
-// }
+impl Range {
+    fn parse(input: &str) -> IResult<&str, Range, ()> {
+        let (input, (start, mut end)) =
+            separated_pair(Point::parse, tag("--"), Point::parse)(input)?;
+        end.active = start.active;
+        Ok((input, Range { start, end }))
+    }
+}
 
 // impl TryFrom<&str> for Range {
 //     type Error = ();
@@ -257,14 +257,14 @@ impl Point {
 //     }
 // }
 
-// impl Parse for TimeRange {
-//     fn parse(input: &str) -> IResult<&str, TimeRange, ()> {
-//         let (input, (start, end_time)) =
-//             verify(parse_atomic_timestamp, |(_, e)| e.is_some())(input)?;
-//         let end_time = end_time.expect("verified");
-//         Ok((input, TimeRange { start, end_time }))
-//     }
-// }
+impl TimeRange {
+    fn parse(input: &str) -> IResult<&str, TimeRange, ()> {
+        let (input, (start, end_time)) =
+            verify(parse_atomic_timestamp, |(_, e)| e.is_some())(input)?;
+        let end_time = end_time.expect("verified");
+        Ok((input, TimeRange { start, end_time }))
+    }
+}
 
 // impl TryFrom<&str> for TimeRange {
 //     type Error = ();
@@ -720,77 +720,83 @@ mod tests {
         assert_eq!(Point::parse("<2020-01-01>").unwrap().1, res.1);
     }
 
-    //     #[test]
-    //     fn test_parse_range() {
-    //         let timestamp = Range::new(
-    //             "[2020-01-01]".try_into().unwrap(),
-    //             "[2021-01-01]".try_into().unwrap(),
-    //         );
+    #[test]
+    fn test_parse_range() {
+        let timestamp = Range::new(
+            Point::parse("[2020-01-01]").unwrap().1,
+            Point::parse("[2021-01-01]").unwrap().1,
+        );
 
-    //         assert_eq!(
-    //             "[2020-01-01]--[2021-01-01]".try_into().ok(),
-    //             Some(timestamp)
-    //         );
-    //         assert_eq!(
-    //             "[2020-01-01    04:59 .+1w]--[2021-01-01 .+2d]"
-    //                 .try_into()
-    //                 .ok(),
-    //             Some(Range {
-    //                 start: timestamp
-    //                     .start
-    //                     .with_time(Some("4:59"))
-    //                     .with_repeater(Some(".+1w")),
-    //                 end: timestamp.end.with_repeater(Some(".+2d"))
-    //             })
-    //         );
+        assert_eq!(
+            Range::parse("[2020-01-01]--[2021-01-01]").unwrap().1,
+            timestamp
+        );
+        assert_eq!(
+            Range::parse("[2020-01-01    04:59 .+1w]--[2021-01-01 .+2d]")
+                .unwrap()
+                .1,
+            Range {
+                start: timestamp
+                    .start
+                    .with_time(Some(Time::new(4, 59)))
+                    .with_repeater(Some(Repeater::parse(".+1w").unwrap().1)),
+                end: timestamp
+                    .end
+                    .with_repeater(Some(Repeater::parse(".+2d").unwrap().1))
+            }
+        );
 
-    //         for bad in &[
-    //             "<2020-01-01>--<2020-02-01> ",
-    //             "",
-    //             "<2020-01-01>",
-    //             "2020-01-01--2021-01-01",
-    //             "<%%(hi)>",
-    //             "[2020-01-01 01:00-02:00]",
-    //         ] {
-    //             assert!(Range::try_from(*bad).is_err());
-    //         }
-    //     }
+        for bad in &[
+            "",
+            "<2020-01-01>",
+            "2020-01-01--2021-01-01",
+            "<%%(hi)>",
+            "[2020-01-01 01:00-02:00]",
+        ] {
+            assert!(Range::parse(*bad).is_err());
+        }
 
-    //     #[test]
-    //     fn test_parse_time_range() {
-    //         let timestamp = Range::new(
-    //             "[2020-01-01]".try_into().unwrap(),
-    //             "[2021-01-01]".try_into().unwrap(),
-    //         );
+        let res = Range::parse("<2020-01-01>--<2020-02-01> ").unwrap();
+        assert_eq!(" ", res.0);
+        assert_eq!(Range::parse("<2020-01-01>--<2020-02-01>").unwrap().1, res.1);
+    }
 
-    //         assert_eq!(
-    //             "[2020-01-01]--[2021-01-01]".try_into().ok(),
-    //             Some(timestamp)
-    //         );
-    //         assert_eq!(
-    //             "[2020-01-01    04:59 .+1w]--[2021-01-01 .+2d]"
-    //                 .try_into()
-    //                 .ok(),
-    //             Some(Range {
-    //                 start: timestamp
-    //                     .start
-    //                     .with_time(Some("4:59"))
-    //                     .with_repeater(Some(".+1w")),
-    //                 end: timestamp.end.with_repeater(Some(".+2d"))
-    //             })
-    //         );
+    #[test]
+    fn test_parse_time_range() {
+        let timestamp = TimeRange::new(
+            Point::parse("[2020-01-01 03:53]").unwrap().1,
+            Time::parse("05:57").unwrap().1,
+        );
 
-    //         for bad in &[
-    //             "<2020-01-01>--<2020-02-01> ",
-    //             "",
-    //             "<2020-01-01>",
-    //             "2020-01-01--2021-01-01",
-    //             "<%%(hi)>",
-    //             "[2020-01-01 01:00-02:00]",
-    //         ] {
-    //             assert!(Range::try_from(*bad).is_err());
-    //         }
-    //     }
+        assert_eq!(
+            TimeRange::parse("[2020-01-01 03:53-05:57]").unwrap().1,
+            timestamp
+        );
+
+        assert_eq!(
+            TimeRange::parse("[2020-01-01    04:58-04:59 .+1w]")
+                .unwrap()
+                .1,
+            TimeRange {
+                start: timestamp
+                    .start
+                    .with_time(Some(Time::new(4, 58)))
+                    .with_repeater(Some(Repeater::parse(".+1w").unwrap().1)),
+                end_time: Time::new(4, 59)
+            }
+        );
+
+        for bad in &["", "<2020-01-01>", "2020-01-01--2021-01-01", "<%%(hi)>"] {
+            assert!(TimeRange::parse(*bad).is_err());
+        }
+
+        let res = TimeRange::parse("<2020-01-01 09:00-10:00> ").unwrap();
+        assert_eq!(" ", res.0);
+        assert_eq!(
+            TimeRange::parse("<2020-01-01 09:00-10:00>").unwrap().1,
+            res.1
+        );
+    }
 
     //     #[test]
     //     fn test_parse_diary() {
