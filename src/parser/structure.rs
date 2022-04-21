@@ -1,4 +1,4 @@
-use crate::{Arena, Document, RopeExt, RopeSliceExt, Section, SectionData};
+use crate::{Arena, Document, RopeSliceExt, Section, SectionData};
 
 use ropey::{Rope, RopeSlice};
 

@@ -2,7 +2,7 @@ use ropey::{Rope, RopeSlice};
 
 use crate::{parser::structure::parse_document, Document, RopeExt, Section};
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Arena {
     pub(crate) arena: indextree::Arena<SectionData>,
 }

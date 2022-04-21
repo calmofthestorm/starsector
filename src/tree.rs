@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use indextree::NodeId;
 use log::trace;
-use ropey::Rope;
+use ropey::{Rope, RopeSlice};
 
 use crate::{emit::section_tree_to_rope, errors::*, iter::*, *};
 
@@ -14,7 +14,7 @@ pub struct Section {
     pub(crate) id: NodeId,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone, Copy, Hash, Eq)]
 pub struct Document {
     pub root: Section,
 
@@ -82,6 +82,24 @@ impl Document {
             None => None,
         }
     }
+
+    /// Returns the offset in chars of the descendant relative to the start of
+    /// this one, or None if it is not a descendant.
+    pub fn text_offset_of_child(&self, arena: &Arena, child: Section) -> Option<usize> {
+        match self.root.text_offset_of_child(arena, child) {
+            None => None,
+            Some(offset) => {
+                let entry = &arena.arena[self.root.id].get();
+                if entry.text.len_chars() == 0 && !self.empty_root_section && offset > 0 {
+                    // Handle edge case where Org document has a single blank
+                    // line before its first headline.
+                    Some(offset + 1)
+                } else {
+                    Some(offset)
+                }
+            }
+        }
+    }
 }
 
 // Misc methods.
@@ -142,6 +160,33 @@ impl Section {
         }
         new_self
     }
+
+    /// Returns the offset in chars of the descendant relative to the start of
+    /// this one, or None if it is not a descendant.
+    pub fn text_offset_of_child(&self, arena: &Arena, child: Section) -> Option<usize> {
+        let entry = &arena.arena[self.id].get();
+
+        // In the ambiguous (due to our chosen representation) case of empty
+        // headline (only possible for document root), we assume that it is
+        // empty rather than "\n".
+        //
+        // Document has a version of this function that disambiguates this
+        // case.
+        let mut offset = entry.text.len_chars();
+        if offset > 0 {
+            offset += 1;
+        }
+
+        for c in self.descendants(arena) {
+            if c == child {
+                return Some(offset);
+            }
+
+            offset += arena.arena[c.id].get().text.len_chars() + 1;
+        }
+
+        None
+    }
 }
 
 // Non-mutating accessors.
@@ -153,8 +198,8 @@ impl Section {
         arena.arena[self.id].get().level
     }
 
-    pub fn text(self, arena: &Arena) -> &Rope {
-        &arena.arena[self.id].get().text
+    pub fn text<'a>(self, arena: &'a Arena) -> RopeSlice<'a> {
+        arena.arena[self.id].get().text.slice(..)
     }
 
     pub fn parent(self, arena: &Arena) -> Option<Section> {
