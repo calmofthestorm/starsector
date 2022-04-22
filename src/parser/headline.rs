@@ -9,7 +9,7 @@ use nom::{
 };
 use ropey::{Rope, RopeSlice};
 
-use crate::{Context, Headline, HeadlinePod, RopeSliceExt};
+use crate::{Context, Headline, HeadlinePod, RopeSliceExt, Timestamp};
 
 lazy_static! {
     static ref DEFAULT_CONTEXT: Context<'static> = Context::default();
@@ -87,14 +87,14 @@ pub enum PlanningKeyword {
 pub struct InfoPattern {
     pub keyword: PlanningKeyword,
     // ELDRITCH parse timestamp
-    pub timestamp: String,
+    pub timestamp: Timestamp<'static>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Planning {
-    pub deadline: Option<String>,
-    pub scheduled: Option<String>,
-    pub closed: Option<String>,
+    pub deadline: Option<Timestamp<'static>>,
+    pub scheduled: Option<Timestamp<'static>>,
+    pub closed: Option<Timestamp<'static>>,
 }
 
 fn parse_planning_keyword(input: &str) -> IResult<&str, PlanningKeyword, ()> {
@@ -113,12 +113,12 @@ fn parse_info_pattern(input: &str) -> IResult<&str, InfoPattern, ()> {
     separated_pair(
         parse_planning_keyword,
         pair(char(':'), space0),
-        tag("<timestamp>"),
+        Timestamp::parse,
     )(input)
     .map(|(rest, (keyword, timestamp))| {
         let info = InfoPattern {
             keyword,
-            timestamp: timestamp.to_string(),
+            timestamp: timestamp.to_owned(),
         };
         (rest, info)
     })
@@ -244,48 +244,50 @@ mod tests {
 
     #[test]
     fn test_parse_info_pattern() {
-        let pattern = parse_info_pattern("DEADLINE: <timestamp>").unwrap().1;
+        let pattern = parse_info_pattern("DEADLINE: [2022-08-28]").unwrap().1;
         assert_eq!(pattern.keyword, PlanningKeyword::Deadline);
 
-        let pattern = parse_info_pattern("SCHEDULED:<timestamp>").unwrap().1;
+        let pattern = parse_info_pattern("SCHEDULED:[2022-08-28]").unwrap().1;
         assert_eq!(pattern.keyword, PlanningKeyword::Scheduled);
 
-        let pattern = parse_info_pattern("CLOSED:  <timestamp>     ").unwrap().1;
+        let pattern = parse_info_pattern("CLOSED:  [2022-08-28]     ").unwrap().1;
         assert_eq!(pattern.keyword, PlanningKeyword::Closed);
 
-        assert!(parse_info_pattern(" CLOSED: <timestamp>").is_err());
-        assert!(parse_info_pattern("Closed: <timestamp>").is_err());
+        assert!(parse_info_pattern(" CLOSED: [2022-08-28]").is_err());
+        assert!(parse_info_pattern("Closed: [2022-08-28]").is_err());
         assert!(parse_info_pattern(" ").is_err());
     }
 
     #[test]
     fn test_parse_planning_line() {
-        let planning = parse_planning_line("DEADLINE: <timestamp>DEADLINE: <timestamp>").unwrap();
-        assert_eq!(planning.deadline.unwrap(), "<timestamp>");
+        let timestamp = Timestamp::parse("[2022-08-28]").unwrap().1;
+        let planning = parse_planning_line("DEADLINE: [2022-08-28]DEADLINE: [2022-08-28]").unwrap();
+        assert_eq!(planning.deadline.unwrap(), timestamp);
         assert!(planning.scheduled.is_none());
         assert!(planning.closed.is_none());
 
-        let planning = parse_planning_line("SCHEDULED: <timestamp> DEADLINE: <timestamp>").unwrap();
-        assert_eq!(planning.deadline.unwrap(), "<timestamp>");
-        assert_eq!(planning.scheduled.unwrap(), "<timestamp>");
+        let planning =
+            parse_planning_line("SCHEDULED: [2022-08-28] DEADLINE: [2022-08-28]").unwrap();
+        assert_eq!(planning.deadline.unwrap(), timestamp);
+        assert_eq!(planning.scheduled.unwrap(), timestamp);
         assert!(planning.closed.is_none());
 
-        let planning = parse_planning_line("CLOSED: <timestamp>").unwrap();
-        assert_eq!(planning.closed.unwrap(), "<timestamp>");
+        let planning = parse_planning_line("CLOSED: [2022-08-28]").unwrap();
+        assert_eq!(planning.closed.unwrap(), timestamp);
         assert!(planning.scheduled.is_none());
         assert!(planning.deadline.is_none());
 
         let planning = parse_planning_line(
-            "  DEADLINE: <timestamp> SCHEDULED: <timestamp> CLOSED: <timestamp>   ",
+            "  DEADLINE: [2022-08-28] SCHEDULED: [2022-08-28] CLOSED: [2022-08-28]   ",
         )
         .unwrap();
-        assert_eq!(planning.closed.unwrap(), "<timestamp>");
-        assert_eq!(planning.deadline.unwrap(), "<timestamp>");
-        assert_eq!(planning.scheduled.unwrap(), "<timestamp>");
+        assert_eq!(planning.closed.unwrap(), timestamp);
+        assert_eq!(planning.deadline.unwrap(), timestamp);
+        assert_eq!(planning.scheduled.unwrap(), timestamp);
 
         assert!(parse_planning_line("").is_none());
         assert!(parse_planning_line(" ").is_none());
-        assert!(parse_planning_line("ESCHEDULED: <timestamp>").is_none());
-        assert!(parse_planning_line("DEADLINE <timestamp>").is_none());
+        assert!(parse_planning_line("ESCHEDULED: [2022-08-28]").is_none());
+        assert!(parse_planning_line("DEADLINE [2022-08-28]").is_none());
     }
 }

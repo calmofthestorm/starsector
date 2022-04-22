@@ -5,7 +5,7 @@ use std::fmt::{self, Display, Formatter, Write};
 use ::chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 
 /// A timestamp may be active (<> in org-mode) or inactive ([] in org-mode).
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Activity {
     Active,
     Inactive,
@@ -13,16 +13,16 @@ pub enum Activity {
 
 /// A time of day, with minute precision. e.g., `03:14`.
 // TODO: type safe seconds.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Time(pub(crate) NaiveTime);
 
 /// A range of times of day, with minute precision. e.g., `5:00-7:00`,
 /// `23:00-02:00`, or `01:30-1:30`
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Times(pub(crate) Time, pub(crate) Time);
 
 /// Either a `Time` or a `Times`.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TimeSpec {
     Time(Time),
     Times(Times),
@@ -30,11 +30,11 @@ pub enum TimeSpec {
 
 /// A date without a timezone. e.g., `2020-01-23`, `2023-01-25 Tue`, `1977-09-25
 /// Zeepsday`.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Date(pub(crate) NaiveDate);
 
 /// A unit of time duration. One of `h`, `d`, `w`, `m`, and `y`.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum TimeUnit {
     Hour,
     Day,
@@ -44,7 +44,7 @@ pub enum TimeUnit {
 }
 
 /// An org-mode repeater mark. One of `+`, `++`, and `.+`.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum RepeaterMark {
     Cumulate,
     CatchUp,
@@ -52,28 +52,28 @@ pub enum RepeaterMark {
 }
 
 /// An org-mode delay mark. One of `-` and `--`.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DelayMark {
     All,
     First,
 }
 
 /// An interval of time. e.g., `5d`, `1h`, `7y`, `09w`.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Interval {
     value: usize,
     unit: TimeUnit,
 }
 
 /// An org-mode repeater. e.g., `+5d`, `++1w`.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Repeater {
     pub(crate) mark: RepeaterMark,
     pub(crate) interval: Interval,
 }
 
 /// An org-mode delay/warning. e.g., `-1d`, `--1w`.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Delay {
     pub(crate) mark: DelayMark,
     pub(crate) interval: Interval,
@@ -81,19 +81,19 @@ pub struct Delay {
 
 /// An org-mode repeater and delay (both optional). e.g., ``, `+1d -1w`, `--1d,
 /// .+2y`, `--1y`, `++1y`.
-#[derive(Clone, Copy, Debug, PartialEq, Default)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
 pub struct RepeaterAndDelay {
     pub(crate) repeater: Option<Repeater>,
     pub(crate) delay: Option<Delay>,
 }
 
 /// The `Diary` variant of an org-mode timestamp.
-#[derive(Clone, Debug, PartialEq, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct Diary<'a>(pub(crate) Cow<'a, str>);
 
 /// The `Active` or `Inactive` variant of an org-mode timestamp. Note that these
 /// do not include a time-range.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Point {
     pub(crate) active: Activity,
     pub(crate) date: Date,
@@ -101,19 +101,19 @@ pub struct Point {
     pub(crate) cookie: RepeaterAndDelay,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Range {
     pub(crate) start: Point,
     pub(crate) end: Point,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TimeRange {
     pub(crate) start: Point,
     pub(crate) end_time: Time,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Timestamp<'a> {
     Diary(Diary<'a>),
     Point(Point),
