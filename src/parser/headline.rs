@@ -9,7 +9,9 @@ use nom::{
 };
 use ropey::{Rope, RopeSlice};
 
-use crate::{Context, Headline, HeadlinePod, RopeSliceExt, Timestamp};
+use crate::{
+    Context, Headline, HeadlinePod, InfoPattern, Planning, PlanningKeyword, RopeSliceExt, Timestamp,
+};
 
 lazy_static! {
     static ref DEFAULT_CONTEXT: Context<'static> = Context::default();
@@ -76,27 +78,6 @@ fn parse_tags(input: &str) -> IResult<&str, &str, ()> {
     ))
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PlanningKeyword {
-    Deadline,
-    Scheduled,
-    Closed,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InfoPattern {
-    pub keyword: PlanningKeyword,
-    // ELDRITCH parse timestamp
-    pub timestamp: Timestamp<'static>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct Planning {
-    pub deadline: Option<Timestamp<'static>>,
-    pub scheduled: Option<Timestamp<'static>>,
-    pub closed: Option<Timestamp<'static>>,
-}
-
 fn parse_planning_keyword(input: &str) -> IResult<&str, PlanningKeyword, ()> {
     if input.starts_with("DEADLINE:") {
         Ok((&input[8..], PlanningKeyword::Deadline))
@@ -118,7 +99,7 @@ fn parse_info_pattern(input: &str) -> IResult<&str, InfoPattern, ()> {
     .map(|(rest, (keyword, timestamp))| {
         let info = InfoPattern {
             keyword,
-            timestamp: timestamp.to_owned(),
+            timestamp: timestamp.into_owned(),
         };
         (rest, info)
     })
@@ -195,16 +176,11 @@ pub(crate) fn parse_headline(input: RopeSlice, context: &Context) -> Option<Head
         };
 
     // Attempt to parse a planning line out of the body.
-    // ELDRITCH
-    // let (planning_line, remaining_body) = crate::parser::structure::consuming_line(&body);
-    // let (planning, body) = match parse_planning_line(&planning_line.to_string()) {
-    //     Some(planning) => (Some(planning), remaining_body),
-    //     None => (None, body),
-    // };
-
-    // Regardless of whether we parsed the planning line, attempt to parse a properties drawer.
-    // ELDRITCH
-    // let (properties, body) = parse_properties_drawer(body);
+    let (planning_line, remaining_body) = crate::parser::structure::consuming_line(&body);
+    let (planning, body) = match parse_planning_line(&planning_line.to_string()) {
+        Some(planning) => (Some(planning.into_owned()), remaining_body),
+        None => (None, body),
+    };
 
     Some(Headline(HeadlinePod {
         level,
@@ -214,6 +190,7 @@ pub(crate) fn parse_headline(input: RopeSlice, context: &Context) -> Option<Head
         title: title.into(),
         raw_tags_string,
         raw_tags_rope,
+        planning: planning.unwrap_or_default(),
         body: body.into(),
     }))
 }
@@ -289,5 +266,28 @@ mod tests {
         assert!(parse_planning_line(" ").is_none());
         assert!(parse_planning_line("ESCHEDULED: [2022-08-28]").is_none());
         assert!(parse_planning_line("DEADLINE [2022-08-28]").is_none());
+    }
+
+    // A regression test for one of my files. Orgize can't handle timestamps
+    // that are missing the day of week (it can be invalid or wrong, but must be
+    // there), but I have a lot of them.
+    #[test]
+    fn test_day_of_week_is_optional() {
+        const TEXT: &str = r#"* DONE Send a card for her retirement
+  CLOSED: [2018-05-28 Mon 10:57] SCHEDULED: <2018-05-28>
+  :PROPERTIES:
+  :ARCHIVE_OLPATH: Calendar/One-off Misc
+  :ARCHIVE_CATEGORY: org
+  :ARCHIVE_TODO: DONE
+  :END:
+  :LOGBOOK:
+  - State "DONE"       from "TODO"       [2018-05-28 Mon 10:57]
+  :END:
+"#;
+
+        let h = parse_headline(Rope::from(TEXT).slice(..), &Context::default()).unwrap();
+        assert!(h.planning().scheduled.is_some());
+        assert!(h.planning().deadline.is_none());
+        assert_eq!(3, h.properties().unwrap().len());
     }
 }

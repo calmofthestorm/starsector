@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 
 use rand::RngCore;
-
 // Wrappers for things we delegate to Orgize. We prioritize convenience over
 // performance for these.
 //
@@ -49,49 +48,6 @@ pub(crate) fn properties_internal(
         .iter()
         .map(|(k, v)| (Cow::Owned(k.to_string()), Cow::Owned(v.to_string())))
         .collect();
-    Ok(p)
-}
-
-pub(crate) fn planning_internal(
-    org: &orgize::Org,
-) -> Result<Option<orgize::elements::Planning<'static>>, HeadlineError> {
-    let p = get_title_internal(org)?
-        .planning
-        .as_ref()
-        .map(|planning| planning.clone().into_owned());
-    Ok(p)
-}
-
-pub(crate) fn get_closed_internal(
-    org: &orgize::Org,
-) -> Result<Option<orgize::elements::Timestamp<'static>>, HeadlineError> {
-    let p = get_title_internal(org)?
-        .planning
-        .as_ref()
-        .and_then(|planning| planning.closed.as_ref())
-        .map(|closed| closed.clone().into_owned());
-    Ok(p)
-}
-
-pub(crate) fn get_deadline_internal(
-    org: &orgize::Org,
-) -> Result<Option<orgize::elements::Timestamp<'static>>, HeadlineError> {
-    let p = get_title_internal(org)?
-        .planning
-        .as_ref()
-        .and_then(|planning| planning.deadline.as_ref())
-        .map(|deadline| deadline.clone().into_owned());
-    Ok(p)
-}
-
-pub(crate) fn get_scheduled_internal(
-    org: &orgize::Org,
-) -> Result<Option<orgize::elements::Timestamp<'static>>, HeadlineError> {
-    let p = get_title_internal(org)?
-        .planning
-        .as_ref()
-        .and_then(|planning| planning.scheduled.as_ref())
-        .map(|scheduled| scheduled.clone().into_owned());
     Ok(p)
 }
 
@@ -168,77 +124,6 @@ pub fn generate_id_internal(
     );
     set_property_internal(org, "ID", &bytes)?;
     Ok(bytes.into())
-}
-
-pub fn set_scheduled_internal(
-    org: &mut orgize::Org,
-    scheduled: Option<orgize::elements::Timestamp<'static>>,
-) -> Result<(), crate::errors::HeadlineError> {
-    let headline = get_title_mut_internal(org)?;
-    match headline.planning.as_mut() {
-        None => {
-            headline.planning = Some(Box::new(orgize::elements::Planning {
-                scheduled,
-                deadline: None,
-                closed: None,
-            }));
-        }
-        Some(planning) => {
-            planning.scheduled = scheduled;
-        }
-    }
-
-    Ok(())
-}
-
-pub fn set_closed_internal(
-    org: &mut orgize::Org,
-    closed: Option<orgize::elements::Timestamp<'static>>,
-) -> Result<(), crate::errors::HeadlineError> {
-    let headline = get_title_mut_internal(org)?;
-    match headline.planning.as_mut() {
-        None => {
-            headline.planning = Some(Box::new(orgize::elements::Planning {
-                closed,
-                deadline: None,
-                scheduled: None,
-            }));
-        }
-        Some(planning) => {
-            planning.closed = closed;
-        }
-    }
-
-    Ok(())
-}
-
-pub fn set_deadline_internal(
-    org: &mut orgize::Org,
-    deadline: Option<orgize::elements::Timestamp<'static>>,
-) -> Result<(), crate::errors::HeadlineError> {
-    let headline = get_title_mut_internal(org)?;
-    match headline.planning.as_mut() {
-        None => {
-            headline.planning = Some(Box::new(orgize::elements::Planning {
-                deadline,
-                closed: None,
-                scheduled: None,
-            }));
-        }
-        Some(planning) => {
-            planning.deadline = deadline;
-        }
-    }
-
-    Ok(())
-}
-
-pub fn set_planning_internal(
-    org: &mut orgize::Org,
-    planning: Option<orgize::elements::Planning<'static>>,
-) -> Result<(), crate::errors::HeadlineError> {
-    get_title_mut_internal(org)?.planning = planning.map(Box::new);
-    Ok(())
 }
 
 fn get_title_mut_internal<'a, 'b>(

@@ -510,6 +510,41 @@ impl Section {
         }
     }
 
+    pub fn planning(
+        &self,
+        arena: &Arena,
+        context: Option<&Context>,
+    ) -> Result<Planning<'static>, HeadlineError> {
+        match self.parse_headline(arena, context) {
+            None => Err(HeadlineError::InvalidHeadlineError),
+            Some(h) => Ok(h.planning().clone().into_owned()),
+        }
+    }
+
+    pub fn scheduled(
+        &self,
+        arena: &Arena,
+        context: Option<&Context>,
+    ) -> Result<Option<Timestamp<'static>>, HeadlineError> {
+        self.planning(arena, context).map(|p| p.scheduled)
+    }
+
+    pub fn deadline(
+        &self,
+        arena: &Arena,
+        context: Option<&Context>,
+    ) -> Result<Option<Timestamp<'static>>, HeadlineError> {
+        self.planning(arena, context).map(|p| p.deadline)
+    }
+
+    pub fn closed(
+        &self,
+        arena: &Arena,
+        context: Option<&Context>,
+    ) -> Result<Option<Timestamp<'static>>, HeadlineError> {
+        self.planning(arena, context).map(|p| p.closed)
+    }
+
     pub fn body<'a>(
         self,
         arena: &'a Arena,
@@ -544,36 +579,6 @@ impl Section {
     }
 
     #[cfg(feature = "orgize-integration")]
-    pub fn get_closed(
-        &self,
-        arena: &Arena,
-        context: Option<&Context>,
-    ) -> Result<Option<orgize::elements::Timestamp<'static>>, HeadlineError> {
-        let org = self.orgize_headline(arena, context)?;
-        get_closed_internal(&org)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn get_deadline(
-        &self,
-        arena: &Arena,
-        context: Option<&Context>,
-    ) -> Result<Option<orgize::elements::Timestamp<'static>>, HeadlineError> {
-        let org = self.orgize_headline(arena, context)?;
-        get_deadline_internal(&org)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn get_scheduled(
-        &self,
-        arena: &Arena,
-        context: Option<&Context>,
-    ) -> Result<Option<orgize::elements::Timestamp<'static>>, HeadlineError> {
-        let org = self.orgize_headline(arena, context)?;
-        get_scheduled_internal(&org)
-    }
-
-    #[cfg(feature = "orgize-integration")]
     pub fn get_id(
         &self,
         arena: &Arena,
@@ -591,16 +596,6 @@ impl Section {
     ) -> Result<indexmap::IndexMap<Cow<'static, str>, Cow<'static, str>>, HeadlineError> {
         let org = self.orgize_headline(arena, context)?;
         properties_internal(&org)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn planning(
-        &self,
-        arena: &Arena,
-        context: Option<&Context>,
-    ) -> Result<Option<orgize::elements::Planning<'static>>, HeadlineError> {
-        let org = self.orgize_headline(arena, context)?;
-        planning_internal(&org)
     }
 
     // Not public because we don't support Orgize keyword context.
@@ -789,6 +784,76 @@ impl Section {
         }
     }
 
+    pub fn set_planning(
+        self,
+        arena: &mut Arena,
+        planning: Planning,
+        context: Option<&Context>,
+    ) -> Result<(), crate::errors::HeadlineError> {
+        match self.parse_headline(arena, context) {
+            None => Err(HeadlineError::InvalidHeadlineError),
+            Some(h) => {
+                let mut h = h.to_builder();
+                h.planning(planning);
+                self.set_headline(arena, &h.headline(context)?)
+            }
+        }
+    }
+
+    pub fn set_scheduled(
+        self,
+        arena: &mut Arena,
+        scheduled: Option<Timestamp<'_>>,
+        context: Option<&Context>,
+    ) -> Result<(), crate::errors::HeadlineError> {
+        match self.parse_headline(arena, context) {
+            None => Err(HeadlineError::InvalidHeadlineError),
+            Some(h) => {
+                let mut planning = h.planning().to_borrowed();
+                planning.scheduled = scheduled;
+                let mut h = h.to_builder();
+                h.planning(planning);
+                self.set_headline(arena, &h.headline(context)?)
+            }
+        }
+    }
+
+    pub fn set_deadline(
+        self,
+        arena: &mut Arena,
+        deadline: Option<Timestamp<'_>>,
+        context: Option<&Context>,
+    ) -> Result<(), crate::errors::HeadlineError> {
+        match self.parse_headline(arena, context) {
+            None => Err(HeadlineError::InvalidHeadlineError),
+            Some(h) => {
+                let mut planning = h.planning().to_borrowed();
+                planning.deadline = deadline;
+                let mut h = h.to_builder();
+                h.planning(planning);
+                self.set_headline(arena, &h.headline(context)?)
+            }
+        }
+    }
+
+    pub fn set_closed(
+        self,
+        arena: &mut Arena,
+        closed: Option<Timestamp<'_>>,
+        context: Option<&Context>,
+    ) -> Result<(), crate::errors::HeadlineError> {
+        match self.parse_headline(arena, context) {
+            None => Err(HeadlineError::InvalidHeadlineError),
+            Some(h) => {
+                let mut planning = h.planning().to_borrowed();
+                planning.closed = closed;
+                let mut h = h.to_builder();
+                h.planning(planning);
+                self.set_headline(arena, &h.headline(context)?)
+            }
+        }
+    }
+
     pub fn set_body(
         self,
         arena: &mut Arena,
@@ -880,90 +945,6 @@ impl Section {
                     return Ok(id.to_owned());
                 }
                 let id = generate_id_internal(&mut org)?;
-                let mut h = h.to_builder();
-                h.body(emit_orgize(&org));
-                let h = h.headline(context)?;
-                self.set_headline(arena, &h)?;
-                Ok(id)
-            }
-        }
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn set_planning(
-        self,
-        arena: &mut Arena,
-        planning: Option<orgize::elements::Planning<'static>>,
-        context: Option<&Context>,
-    ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
-            None => Err(HeadlineError::InvalidHeadlineError),
-            Some(h) => {
-                let mut org = parse_orgize(h.body());
-                let id = set_planning_internal(&mut org, planning)?;
-                let mut h = h.to_builder();
-                h.body(emit_orgize(&org));
-                let h = h.headline(context)?;
-                self.set_headline(arena, &h)?;
-                Ok(id)
-            }
-        }
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn set_scheduled(
-        self,
-        arena: &mut Arena,
-        scheduled: Option<orgize::elements::Timestamp<'static>>,
-        context: Option<&Context>,
-    ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
-            None => Err(HeadlineError::InvalidHeadlineError),
-            Some(h) => {
-                let mut org = parse_orgize(h.body());
-                let id = set_scheduled_internal(&mut org, scheduled)?;
-                let mut h = h.to_builder();
-                h.body(emit_orgize(&org));
-                let h = h.headline(context)?;
-                self.set_headline(arena, &h)?;
-                Ok(id)
-            }
-        }
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn set_closed(
-        self,
-        arena: &mut Arena,
-        closed: Option<orgize::elements::Timestamp<'static>>,
-        context: Option<&Context>,
-    ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
-            None => Err(HeadlineError::InvalidHeadlineError),
-            Some(h) => {
-                let mut org = parse_orgize(h.body());
-                let id = set_closed_internal(&mut org, closed)?;
-                let mut h = h.to_builder();
-                h.body(emit_orgize(&org));
-                let h = h.headline(context)?;
-                self.set_headline(arena, &h)?;
-                Ok(id)
-            }
-        }
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn set_deadline(
-        self,
-        arena: &mut Arena,
-        deadline: Option<orgize::elements::Timestamp<'static>>,
-        context: Option<&Context>,
-    ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
-            None => Err(HeadlineError::InvalidHeadlineError),
-            Some(h) => {
-                let mut org = parse_orgize(h.body());
-                let id = set_deadline_internal(&mut org, deadline)?;
                 let mut h = h.to_builder();
                 h.body(emit_orgize(&org));
                 let h = h.headline(context)?;

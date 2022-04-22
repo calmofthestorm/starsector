@@ -622,7 +622,7 @@ mod tests {
                     DelayMark::First,
                     Interval::new(1, TimeUnit::Day)
                 )))
-                .with_active(false)
+                .with_active(Activity::Inactive)
                 .with_time(Some(Time::new(3, 57)))
         );
 
@@ -742,11 +742,11 @@ mod tests {
             assert_eq!(Point::parse("<2020-03-01>").unwrap().1, point);
             assert_eq!(
                 Point::parse("[2020-03-01]").unwrap().1,
-                point.with_active(false)
+                point.with_active(Activity::Inactive)
             );
             assert_eq!(
                 Point::parse("[2020-03-01 Wed]").unwrap().1,
-                point.with_active(false)
+                point.with_active(Activity::Inactive)
             );
             assert_eq!(Point::parse("<2020-03-01 Zee>").unwrap().1, point);
             assert_eq!(Point::parse("<2020-03-01 >").unwrap().1, point);
@@ -754,11 +754,11 @@ mod tests {
             let time = NaiveTime::from_hms(3, 59, 0);
             assert_eq!(
                 Point::parse("<2020-03-01 \tFri  3:59>").unwrap().1,
-                point.with_time(Some(time))
+                point.with_time(Some(time.into()))
             );
             assert_eq!(
                 Point::parse("<2020-03-01 \tFri  3:59>").unwrap().1,
-                point.with_time(Some(time))
+                point.with_time(Some(time.into()))
             );
 
             assert_eq!(
@@ -770,7 +770,7 @@ mod tests {
                 Point::parse("[2020-03-01 .+1w]").unwrap().1,
                 point
                     .with_repeater(Some(Repeater::parse(".+1w").unwrap().1))
-                    .with_active(false)
+                    .with_active(Activity::Inactive)
             );
 
             assert_eq!(
@@ -796,7 +796,7 @@ mod tests {
             );
             assert_eq!(
                 Point::parse("[2020-03-01>").unwrap().1,
-                point.with_active(false)
+                point.with_active(Activity::Inactive)
             );
 
             for bad in &["2020-01-01", ""] {

@@ -188,11 +188,17 @@ impl Activity {
     pub fn is_active(&self) -> bool {
         self.into()
     }
+
+    pub fn delimiters(&self) -> (char, char) {
+        match self {
+            Activity::Active => ('<', '>'),
+            Activity::Inactive => ('[', ']'),
+        }
+    }
 }
 
 impl Interval {
-    pub fn new<U: TryInto<TimeUnit>>(value: usize, unit: U) -> Interval {
-        let unit = unit.try_into().map_err(|_| ()).unwrap();
+    pub fn new(value: usize, unit: TimeUnit) -> Interval {
         Interval { value, unit }
     }
 
@@ -204,21 +210,17 @@ impl Interval {
         self.unit
     }
 
-    pub fn with_value<V: TryInto<usize>>(&self, value: V) -> Interval {
-        let value = value.try_into().map_err(|_| ()).unwrap();
+    pub fn with_value(&self, value: usize) -> Interval {
         Interval { value, ..*self }
     }
 
-    pub fn with_unit<U: TryInto<TimeUnit>>(&self, unit: U) -> Interval {
-        let unit = unit.try_into().map_err(|_| ()).unwrap();
+    pub fn with_unit(&self, unit: TimeUnit) -> Interval {
         Interval { unit, ..*self }
     }
 }
 
 impl Repeater {
-    pub fn new<M: TryInto<RepeaterMark>, I: TryInto<Interval>>(mark: M, interval: I) -> Repeater {
-        let mark = mark.try_into().map_err(|_| ()).unwrap();
-        let interval = interval.try_into().map_err(|_| ()).unwrap();
+    pub fn new(mark: RepeaterMark, interval: Interval) -> Repeater {
         Repeater { mark, interval }
     }
 
@@ -238,24 +240,24 @@ impl Repeater {
         self.interval.unit
     }
 
-    pub fn with_mark<M: TryInto<RepeaterMark>>(&self, mark: M) -> Repeater {
+    pub fn with_mark(&self, mark: RepeaterMark) -> Repeater {
         let mark = mark.try_into().map_err(|_| ()).unwrap();
         Repeater { mark, ..*self }
     }
 
-    pub fn with_interval<I: TryInto<Interval>>(&self, interval: I) -> Repeater {
+    pub fn with_interval(&self, interval: Interval) -> Repeater {
         let interval = interval.try_into().map_err(|_| ()).unwrap();
         Repeater { interval, ..*self }
     }
 
-    pub fn with_unit<U: TryInto<TimeUnit>>(&self, unit: U) -> Repeater {
+    pub fn with_unit(&self, unit: TimeUnit) -> Repeater {
         Repeater {
             interval: self.interval.with_unit(unit),
             ..*self
         }
     }
 
-    pub fn with_value<V: TryInto<usize>>(&self, value: V) -> Repeater {
+    pub fn with_value(&self, value: usize) -> Repeater {
         Repeater {
             interval: self.interval.with_value(value),
             ..*self
@@ -264,9 +266,7 @@ impl Repeater {
 }
 
 impl Delay {
-    pub fn new<M: TryInto<DelayMark>, I: TryInto<Interval>>(mark: M, interval: I) -> Delay {
-        let mark = mark.try_into().map_err(|_| ()).unwrap();
-        let interval = interval.try_into().map_err(|_| ()).unwrap();
+    pub fn new(mark: DelayMark, interval: Interval) -> Delay {
         Delay { mark, interval }
     }
 
@@ -286,24 +286,22 @@ impl Delay {
         self.interval.unit
     }
 
-    pub fn with_mark<M: TryInto<DelayMark>>(&self, mark: M) -> Delay {
-        let mark = mark.try_into().map_err(|_| ()).unwrap();
+    pub fn with_mark(&self, mark: DelayMark) -> Delay {
         Delay { mark, ..*self }
     }
 
-    pub fn with_interval<I: TryInto<Interval>>(&self, interval: I) -> Delay {
-        let interval = interval.try_into().map_err(|_| ()).unwrap();
+    pub fn with_interval(&self, interval: Interval) -> Delay {
         Delay { interval, ..*self }
     }
 
-    pub fn with_unit<U: TryInto<TimeUnit>>(&self, unit: U) -> Delay {
+    pub fn with_unit(&self, unit: TimeUnit) -> Delay {
         Delay {
             interval: self.interval.with_unit(unit),
             ..*self
         }
     }
 
-    pub fn with_value<V: TryInto<usize>>(&self, value: V) -> Delay {
+    pub fn with_value(&self, value: usize) -> Delay {
         Delay {
             interval: self.interval.with_value(value),
             ..*self
@@ -312,34 +310,32 @@ impl Delay {
 }
 
 impl RepeaterAndDelay {
-    pub fn new<R: TryInto<Repeater>, D: TryInto<Delay>>(
-        repeater: Option<R>,
-        delay: Option<D>,
-    ) -> RepeaterAndDelay {
-        let repeater = repeater.map(|r| r.try_into().map_err(|_| ()).unwrap());
-        let delay = delay.map(|d| d.try_into().map_err(|_| ()).unwrap());
+    pub fn new(repeater: Option<Repeater>, delay: Option<Delay>) -> RepeaterAndDelay {
         RepeaterAndDelay { repeater, delay }
     }
 
-    pub fn with_repeater<T: TryInto<Repeater>>(&self, repeater: Option<T>) -> RepeaterAndDelay {
-        RepeaterAndDelay {
-            repeater: repeater.map(|r| r.try_into().map_err(|_| ()).unwrap()),
-            ..*self
-        }
+    pub fn with_repeater(&self, repeater: Option<Repeater>) -> RepeaterAndDelay {
+        RepeaterAndDelay { repeater, ..*self }
     }
 
-    pub fn with_delay<T: TryInto<Delay>>(&self, delay: Option<T>) -> RepeaterAndDelay {
-        RepeaterAndDelay {
-            delay: delay.map(|d| d.try_into().map_err(|_| ()).unwrap()),
-            ..*self
-        }
+    pub fn with_delay(&self, delay: Option<Delay>) -> RepeaterAndDelay {
+        RepeaterAndDelay { delay, ..*self }
     }
 }
 
 impl<'a> Timestamp<'a> {
-    pub fn to_owned(&self) -> Timestamp<'static> {
+    pub fn into_owned(self) -> Timestamp<'static> {
         match self {
-            Timestamp::Diary(diary) => Timestamp::Diary(diary.to_owned()),
+            Timestamp::Diary(diary) => Timestamp::Diary(diary.into_owned()),
+            Timestamp::Point(point) => Timestamp::Point(point),
+            Timestamp::Range(range) => Timestamp::Range(range),
+            Timestamp::TimeRange(range) => Timestamp::TimeRange(range),
+        }
+    }
+
+    pub fn to_borrowed(&self) -> Timestamp<'a> {
+        match self {
+            Timestamp::Diary(diary) => Timestamp::Diary(diary.to_borrowed()),
             Timestamp::Point(point) => Timestamp::Point(*point),
             Timestamp::Range(range) => Timestamp::Range(*range),
             Timestamp::TimeRange(range) => Timestamp::TimeRange(*range),
@@ -348,9 +344,7 @@ impl<'a> Timestamp<'a> {
 }
 
 impl Time {
-    pub fn new<T: TryInto<u32>, U: TryInto<u32>>(hour: T, minute: U) -> Time {
-        let hour = hour.try_into().map_err(|_| ()).unwrap();
-        let minute = minute.try_into().map_err(|_| ()).unwrap();
+    pub fn new(hour: u32, minute: u32) -> Time {
         NaiveTime::from_hms(hour, minute, 0)
             .try_into()
             .map_err(|_| ())
@@ -365,12 +359,12 @@ impl Time {
         self.0.minute().try_into().unwrap()
     }
 
-    pub fn with_hour<T: TryInto<u32>>(self, hour: T) -> Time {
-        Time::new(hour, self.minute())
+    pub fn with_hour(self, hour: u32) -> Time {
+        Time::new(hour, self.minute().into())
     }
 
-    pub fn with_minute<T: TryInto<u32>>(self, minute: T) -> Time {
-        Time::new(minute, self.hour())
+    pub fn with_minute(self, minute: u32) -> Time {
+        Time::new(minute, self.hour().into())
     }
 }
 
@@ -383,14 +377,12 @@ impl Times {
         self.0
     }
 
-    pub fn with_start<T: TryInto<Time>>(&self, start: T) -> Times {
-        // FIXME: here and elsewhere: find a good way to impl debug
-        Times(start.try_into().map_err(|_| ()).unwrap(), self.1)
+    pub fn with_start(&self, start: Time) -> Times {
+        Times(start, self.1)
     }
 
-    pub fn with_end<T: Into<Time>>(&self, end: T) -> Times {
-        // FIXME: here and elsewhere: find a good way to impl debug
-        Times(self.0, end.try_into().map_err(|_| ()).unwrap())
+    pub fn with_end(&self, end: Time) -> Times {
+        Times(self.0, end)
     }
 }
 
@@ -426,42 +418,30 @@ impl Point {
         }
     }
 
-    pub fn with_active<T: TryInto<Activity>>(&self, active: T) -> Point {
-        Point {
-            active: active.try_into().map_err(|_| ()).unwrap(),
-            ..*self
-        }
+    pub fn with_active(&self, active: Activity) -> Point {
+        Point { active, ..*self }
     }
 
-    pub fn with_time<T: TryInto<Time>>(&self, time: Option<T>) -> Point {
-        Point {
-            time: time.map(|t| t.try_into().map_err(|_| ()).unwrap()),
-            ..*self
-        }
+    pub fn with_time(&self, time: Option<Time>) -> Point {
+        Point { time, ..*self }
     }
 
-    pub fn with_date<T: TryInto<Date>>(&self, date: T) -> Point {
-        Point {
-            date: date.try_into().map_err(|_| ()).unwrap(),
-            ..*self
-        }
+    pub fn with_date(&self, date: Date) -> Point {
+        Point { date, ..*self }
     }
 
-    pub fn with_cookie<T: TryInto<RepeaterAndDelay>>(&self, cookie: T) -> Point {
-        Point {
-            cookie: cookie.try_into().map_err(|_| ()).unwrap(),
-            ..*self
-        }
+    pub fn with_cookie(&self, cookie: RepeaterAndDelay) -> Point {
+        Point { cookie, ..*self }
     }
 
-    pub fn with_repeater<T: TryInto<Repeater>>(&self, repeater: Option<T>) -> Point {
+    pub fn with_repeater(&self, repeater: Option<Repeater>) -> Point {
         Point {
             cookie: self.cookie.with_repeater(repeater),
             ..*self
         }
     }
 
-    pub fn with_delay<T: TryInto<Delay>>(&self, delay: Option<T>) -> Point {
+    pub fn with_delay(&self, delay: Option<Delay>) -> Point {
         Point {
             cookie: self.cookie.with_delay(delay),
             ..*self
@@ -476,8 +456,7 @@ impl Range {
     }
 
     // Note: This will NOT change the active/inactive status of the Range.
-    pub fn with_start<T: TryInto<Point>>(&self, start: T) -> Range {
-        let start = start.try_into().map_err(|_| ()).unwrap();
+    pub fn with_start(&self, start: Point) -> Range {
         Range {
             start: start.with_active(self.start.active),
             ..*self
@@ -485,16 +464,14 @@ impl Range {
     }
 
     // Note: This will NOT change the active/inactive status of the Range.
-    pub fn with_end<T: TryInto<Point>>(&self, end: T) -> Range {
-        let end = end.try_into().map_err(|_| ()).unwrap();
+    pub fn with_end(&self, end: Point) -> Range {
         Range {
             end: end.with_active(self.end.active),
             ..*self
         }
     }
 
-    pub fn with_active<T: TryInto<Activity>>(&self, active: T) -> Range {
-        let active = active.try_into().map_err(|_| ()).unwrap();
+    pub fn with_active(&self, active: Activity) -> Range {
         Range {
             start: self.start.with_active(active),
             end: self.end.with_active(active),
@@ -508,8 +485,7 @@ impl TimeRange {
     }
 
     // Note: This WILL NOT change the active/inactive status of the Range.
-    pub fn with_start<T: TryInto<Point>>(&self, start: T) -> TimeRange {
-        let start = start.try_into().map_err(|_| ()).unwrap();
+    pub fn with_start(&self, start: Point) -> TimeRange {
         TimeRange {
             start: start.with_active(self.start.active),
             ..*self
@@ -517,8 +493,7 @@ impl TimeRange {
     }
 
     // Note: This will NOT change the active/inactive status of the Range.
-    pub fn with_start_time<T: TryInto<Time>>(&self, start_time: T) -> TimeRange {
-        let start_time = start_time.try_into().map_err(|_| ()).unwrap();
+    pub fn with_start_time(&self, start_time: Time) -> TimeRange {
         TimeRange {
             start: self.start.with_time(Some(start_time)),
             ..*self
@@ -526,25 +501,22 @@ impl TimeRange {
     }
 
     // Note: This will NOT change the active/inactive status of the Range.
-    pub fn with_end_time<T: TryInto<Time>>(&self, end_time: T) -> TimeRange {
-        let end_time = end_time.try_into().map_err(|_| ()).unwrap();
+    pub fn with_end_time(&self, end_time: Time) -> TimeRange {
         TimeRange { end_time, ..*self }
     }
 
-    pub fn with_start_and_end<T: TryInto<Time>>(&self, start_time: T, end_time: T) -> TimeRange {
+    pub fn with_start_and_end(&self, start_time: Time, end_time: Time) -> TimeRange {
         TimeRange {
             start: self.start.with_time(Some(start_time)),
-            end_time: end_time.try_into().map_err(|_| ()).unwrap(),
+            end_time,
         }
     }
 
-    pub fn with_times<T: TryInto<Times>>(&self, times: T) -> TimeRange {
-        let times = times.try_into().map_err(|_| ()).unwrap();
+    pub fn with_times(&self, times: Times) -> TimeRange {
         self.with_start_and_end(times.0, times.1)
     }
 
-    pub fn with_active<T: TryInto<Activity>>(&self, active: T) -> TimeRange {
-        let active = active.try_into().map_err(|_| ()).unwrap();
+    pub fn with_active(&self, active: Activity) -> TimeRange {
         TimeRange {
             start: self.start.with_active(active),
             ..*self
@@ -553,16 +525,22 @@ impl TimeRange {
 }
 
 impl<'a> Diary<'a> {
-    pub fn new<S: AsRef<&'a str>>(s: S) -> Diary<'a> {
-        Diary(Cow::Borrowed(s.as_ref()))
+    pub fn new<'b>(s: &'b str) -> Diary<'b> {
+        Diary(Cow::Borrowed(s))
     }
 
-    pub fn with_diary<S: AsRef<&'a str>>(&'a self, s: S) -> Diary<'a> {
-        Diary::new(s)
+    pub fn into_owned(self) -> Diary<'static> {
+        match self.0 {
+            Cow::Owned(x) => Diary(Cow::Owned(x)),
+            Cow::Borrowed(..) => Diary(Cow::Owned(self.0.to_string())),
+        }
     }
 
-    pub fn to_owned(&self) -> Diary<'static> {
-        Diary(Cow::Owned(self.0.to_string()))
+    pub fn to_borrowed(&self) -> Diary<'a> {
+        match &self.0 {
+            Cow::Owned(..) => self.clone(),
+            Cow::Borrowed(x) => Diary(Cow::Borrowed(x)),
+        }
     }
 }
 
@@ -913,6 +891,12 @@ impl From<&NaiveDate> for Date {
     }
 }
 
+impl Display for Date {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "{}", self.0.format("%Y-%m-%d"))
+    }
+}
+
 impl AsRef<str> for TimeUnit {
     fn as_ref(&self) -> &str {
         match self {
@@ -989,6 +973,67 @@ impl fmt::Display for Repeater {
 impl fmt::Display for Delay {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}{}", self.mark, self.interval)
+    }
+}
+
+impl fmt::Display for RepeaterAndDelay {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match (self.repeater.as_ref(), self.delay.as_ref()) {
+            (Some(r), Some(d)) => write!(f, "{} {}", &r, &d),
+            (Some(r), None) => r.fmt(f),
+            (None, Some(d)) => d.fmt(f),
+            (None, None) => Ok(()),
+        }
+    }
+}
+
+impl fmt::Display for Diary<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<%%({})>", &self.0)
+    }
+}
+
+impl fmt::Display for Point {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let (open, close) = self.active.delimiters();
+        write!(f, "{}{}", open, &self.date)?;
+        if let Some(time) = self.time.as_ref() {
+            write!(f, " {}", time)?;
+        }
+        if self.cookie != RepeaterAndDelay::default() {
+            write!(f, " {}", &self.cookie)?;
+        }
+        f.write_char(close)
+    }
+}
+
+impl fmt::Display for Range {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}--{}", &self.start, &self.end)
+    }
+}
+
+impl fmt::Display for TimeRange {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let (open, close) = self.start.active.delimiters();
+        write!(f, "{}{}", open, &self.start.date)?;
+        let start = self.start.time.as_ref().expect("must have time");
+        write!(f, " {}-{}", start, &self.end_time)?;
+        if self.start.cookie != RepeaterAndDelay::default() {
+            write!(f, " {}", &self.start.cookie)?;
+        }
+        f.write_char(close)
+    }
+}
+
+impl fmt::Display for Timestamp<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Timestamp::Point(timestamp) => timestamp.fmt(f),
+            Timestamp::Range(timestamp) => timestamp.fmt(f),
+            Timestamp::TimeRange(timestamp) => timestamp.fmt(f),
+            Timestamp::Diary(timestamp) => timestamp.fmt(f),
+        }
     }
 }
 
@@ -1103,7 +1148,7 @@ impl From<NaiveDateTime> for Point {
 
 impl From<&NaiveDateTime> for Point {
     fn from(date: &NaiveDateTime) -> Point {
-        Point::new(date.date().into()).with_time(Some(date.time()))
+        Point::new(date.date().into()).with_time(Some(date.time().into()))
     }
 }
 
@@ -1211,5 +1256,108 @@ impl<P: AsRef<Point>> From<P> for TimeRange {
             start: *point.as_ref(),
             end_time: Time::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_point() {
+        assert_eq!(
+            Point::new(Date::new(1971, 11, 11)).to_string().as_str(),
+            "<1971-11-11>"
+        );
+        assert_eq!(
+            Point::new(Date::new(1971, 11, 11))
+                .with_active(Activity::Inactive)
+                .to_string()
+                .as_str(),
+            "[1971-11-11]"
+        );
+        assert_eq!(
+            Point::new(Date::new(1971, 11, 11))
+                .with_active(Activity::Inactive)
+                .with_time(Some(Time::new(9, 18)))
+                .to_string()
+                .as_str(),
+            "[1971-11-11 09:18]"
+        );
+        assert_eq!(
+            Point::new(Date::new(1971, 11, 11))
+                .with_active(Activity::Inactive)
+                .with_time(Some(Time::new(9, 18)))
+                .with_repeater(Some(Repeater::parse(".+7d").unwrap().1))
+                .to_string()
+                .as_str(),
+            "[1971-11-11 09:18 .+7d]"
+        );
+        assert_eq!(
+            Point::new(Date::new(2021, 1, 2))
+                .with_active(Activity::Inactive)
+                .with_delay(Some(Delay::parse("--7d").unwrap().1))
+                .to_string()
+                .as_str(),
+            "[2021-01-02 --7d]"
+        );
+        assert_eq!(
+            Point::new(Date::new(1971, 11, 11))
+                .with_active(Activity::Inactive)
+                .with_time(Some(Time::new(9, 18)))
+                .with_delay(Some(Delay::parse("-8w").unwrap().1))
+                .with_repeater(Some(Repeater::parse("+7d").unwrap().1))
+                .to_string()
+                .as_str(),
+            "[1971-11-11 09:18 +7d -8w]"
+        );
+    }
+
+    #[test]
+    fn test_format_diary() {
+        assert_eq!(Diary::new("hello").to_string().as_str(), "<%%(hello)>");
+        assert_eq!(Diary::new("").to_string().as_str(), "<%%()>");
+    }
+
+    #[test]
+    fn test_format_range() {
+        let a = Point::new(Date::new(2018, 9, 2)).with_time(Some(Time::new(8, 17)));
+        let b = Point::new(Date::new(2018, 9, 3)).with_time(Some(Time::new(8, 17)));
+        assert_eq!(
+            Range::new(a, b).to_string().as_str(),
+            "<2018-09-02 08:17>--<2018-09-03 08:17>"
+        );
+        assert_eq!(
+            Range::new(a.with_time(None), b).to_string().as_str(),
+            "<2018-09-02>--<2018-09-03 08:17>"
+        );
+        assert_eq!(
+            Range::new(a, b.with_repeater(Some(Repeater::parse("+3d").unwrap().1)))
+                .to_string()
+                .as_str(),
+            "<2018-09-02 08:17>--<2018-09-03 08:17 +3d>"
+        );
+    }
+
+    #[test]
+    fn test_format_time_range() {
+        let a = Point::new(Date::new(2018, 9, 2)).with_time(Some(Time::new(8, 17)));
+        let b = Time::new(18, 3);
+        assert_eq!(
+            TimeRange::new(a, b).to_string().as_str(),
+            "<2018-09-02 08:17-18:03>"
+        );
+        assert_eq!(
+            TimeRange::new(
+                a.with_repeater(Some(Repeater::new(
+                    RepeaterMark::Cumulate,
+                    Interval::new(3, TimeUnit::Year)
+                ))),
+                b
+            )
+            .to_string()
+            .as_str(),
+            "<2018-09-02 08:17-18:03 +3y>"
+        );
     }
 }
