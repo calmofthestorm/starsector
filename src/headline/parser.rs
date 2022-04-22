@@ -22,6 +22,12 @@ pub struct Context<'a> {
     pub(crate) keywords: Cow<'a, str>,
 }
 
+impl Default for Context<'static> {
+    fn default() -> Context<'static> {
+        Context::new("TODO:DONE".into())
+    }
+}
+
 impl Context<'_> {
     pub fn default() -> Context<'static> {
         Context::new("TODO:DONE".into())
@@ -46,7 +52,7 @@ pub(crate) fn context_or<'a, 'b>(context: Option<&'b Context<'a>>) -> &'b Contex
 }
 
 impl Section {
-    pub fn parse_headline(self, arena: &Arena, context: Option<&Context>) -> Option<Headline> {
+    pub fn headline(self, arena: &Arena, context: Option<&Context>) -> Option<Headline> {
         if self.level(&arena) > 0 {
             Some(parse_valid_single_headline(
                 self.text(&arena).slice(..),

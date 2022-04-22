@@ -21,6 +21,7 @@ pub(crate) fn has_property_internal(
         .is_ok())
 }
 
+// ELDRITCH: binary search, but is it sorted?
 pub(crate) fn get_property_internal(
     property: &'_ str,
     org: &orgize::Org,

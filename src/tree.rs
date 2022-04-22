@@ -426,7 +426,7 @@ impl Section {
 
 // Convenience accessors that parse the headline to return the value.
 // It's about as efficient as https://www.youtube.com/watch?v=-DKCFjm0DvE
-// For more efficient use, call parse_headline and use that to access multiple.
+// For more efficient use, call headline and use that to access multiple.
 //
 // Note that `set_raw` and `set_level` are available even without
 // `headline-parser` feature.
@@ -437,7 +437,7 @@ impl Section {
         arena: &Arena,
         context: Option<&Context>,
     ) -> Result<Option<char>, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(h.priority()),
         }
@@ -448,7 +448,7 @@ impl Section {
         arena: &'a Arena,
         context: Option<&Context>,
     ) -> Result<Cow<'a, str>, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(Cow::Owned(h.raw_tags().to_string())),
         }
@@ -459,7 +459,7 @@ impl Section {
         arena: &'a Arena,
         context: Option<&Context>,
     ) -> Result<Vec<String>, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(h.tags().map(|s| s.to_string()).collect()),
         }
@@ -471,7 +471,7 @@ impl Section {
         arena: &Arena,
         context: Option<&Context>,
     ) -> Result<bool, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(h.has_tag(tag)),
         }
@@ -482,7 +482,7 @@ impl Section {
         arena: &'a Arena,
         context: Option<&Context>,
     ) -> Result<Option<Cow<'a, str>>, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(h.keyword().map(|s| Cow::Owned(s.to_string()))),
         }
@@ -493,7 +493,7 @@ impl Section {
         arena: &'a Arena,
         context: Option<&Context>,
     ) -> Result<Cow<'a, str>, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(Cow::Owned(h.title().to_string())),
         }
@@ -504,7 +504,7 @@ impl Section {
         arena: &Arena,
         context: Option<&Context>,
     ) -> Result<bool, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(h.commented()),
         }
@@ -515,7 +515,7 @@ impl Section {
         arena: &Arena,
         context: Option<&Context>,
     ) -> Result<Planning<'static>, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(h.planning().clone().into_owned()),
         }
@@ -550,7 +550,7 @@ impl Section {
         arena: &'a Arena,
         context: Option<&Context>,
     ) -> Result<Cow<'a, str>, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(Cow::Owned(h.body().to_string())),
         }
@@ -605,7 +605,7 @@ impl Section {
         arena: &Arena,
         context: Option<&Context>,
     ) -> Result<orgize::Org, HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => Ok(parse_orgize(&h.body())),
         }
@@ -623,7 +623,7 @@ impl Section {
         raw_tags: &str,
         context: Option<&Context>,
     ) -> Result<(), HeadlineError> {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -642,7 +642,7 @@ impl Section {
     where
         I: Iterator<Item = Cow<'a, str>>,
     {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -662,7 +662,7 @@ impl Section {
     where
         I: Iterator<Item = Cow<'a, str>>,
     {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -679,7 +679,7 @@ impl Section {
         tags: &[&str],
         context: Option<&Context>,
     ) -> Result<(), HeadlineError> {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -694,7 +694,7 @@ impl Section {
         arena: &mut Arena,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, None).map(|h| h.to_owned()) {
+        match self.headline(arena, None).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -710,7 +710,7 @@ impl Section {
         tag: &str,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -726,7 +726,7 @@ impl Section {
         tag: &str,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -742,7 +742,7 @@ impl Section {
         keyword: Option<Rope>,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -758,7 +758,7 @@ impl Section {
         title: Rope,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -774,7 +774,7 @@ impl Section {
         commented: bool,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -790,7 +790,7 @@ impl Section {
         planning: Planning,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -806,7 +806,7 @@ impl Section {
         scheduled: Option<Timestamp<'_>>,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut planning = h.planning().to_borrowed();
@@ -824,7 +824,7 @@ impl Section {
         deadline: Option<Timestamp<'_>>,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut planning = h.planning().to_borrowed();
@@ -842,7 +842,7 @@ impl Section {
         closed: Option<Timestamp<'_>>,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut planning = h.planning().to_borrowed();
@@ -860,7 +860,7 @@ impl Section {
         body: Rope,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context).map(|h| h.to_owned()) {
+        match self.headline(arena, context).map(|h| h.to_owned()) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut h = h.to_builder();
@@ -878,7 +878,7 @@ impl Section {
         value: &str,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut org = parse_orgize(h.body());
@@ -898,7 +898,7 @@ impl Section {
         property: &str,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut org = parse_orgize(h.body());
@@ -918,7 +918,7 @@ impl Section {
         properties: indexmap::IndexMap<Cow<'static, str>, Cow<'static, str>>,
         context: Option<&Context>,
     ) -> Result<(), crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut org = parse_orgize(h.body());
@@ -937,7 +937,7 @@ impl Section {
         arena: &mut Arena,
         context: Option<&Context>,
     ) -> Result<Cow<'static, str>, crate::errors::HeadlineError> {
-        match self.parse_headline(arena, context) {
+        match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
             Some(h) => {
                 let mut org = parse_orgize(h.body());

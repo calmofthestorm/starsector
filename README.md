@@ -17,18 +17,18 @@ then save, without spurious deltas in the file.
 * Unmodified headlines will be emitted exactly as they were input, even if other
   headlines were changed. (Note that there are edge cases related to which
   section a newline is part of).
-  
+
 * With `headline-parser` flag adds a parser/generator for headlines (tags,
-  keyword, priority, etc) that functions on top the structural tree.
-  
+  keyword, priority, planning, etc) that functions on top the structural tree.
+
 * With `orgize-integration` flag, uses
   [orgize](https://github.com/PoiScript/orgize) to parse/generate properties
-  drawer and planning (deadline, scheduled, etc).
-  
+  drawer.
+
 * Headlines are represented in memory as text, making both parsing and emitting
   very fast, and permitting a two-way mapping between text offset and each
   headline that remains valid even as the in-memory document is modified.
-  
+
 * Arena allocator provides fast performance and precise control over memory.
 
 * Copy-on-write text storage using [Ropey](https://github.com/cessen/ropey).
@@ -40,25 +40,24 @@ then save, without spurious deltas in the file.
   multiple nodes is rejected, but any other change is allowed. Should such a
   change be desirable, functions are provided that manipulate the tree
   structure directly.
-  
+
   This helps limit the blast radius of bugs to the headline(s) affected, even if
   the bug itself results in adding new text that could be parsed as a headline.
 
 # Limitations
-  
+
 * Parses only a small subset of Org mode.
 
-    I have no plans to extend this, except
-    possibly adding native parsing of properties, planning, and timestamps rather
-    than relying on Orgize. I recommend using
+    I have no plans to extend this, except possibly adding native parsing of
+    properties rather than relying on Orgize. I recommend using
     [orgize](https://github.com/PoiScript/orgize) to parse section contents.
-  
+
 * Since sections are stored as text, every change to a headline requires
   reparsing the entire headline. A builder is provided to batch such changes if
   desired.
-  
+
 * The fuzz test produces many uninteresting cases where Orgize and Starsector
-  parse the same differently. There is some logic to filter out knows
+  parse the same differently. There is some logic to filter out known
   differences, but the fuzz test remains fairly noisy, and requires going
   through it manually to determine whether a difference is actually new. It's
   still very useful, but it's not expected that it will produce no violations.
@@ -112,9 +111,8 @@ closed) for examples.
 
 Rather than attempt to produce a single parse tree that agrees on all edge
 cases, this project takes a layered approach consisting of a structure parser
-for the entire file, a headline parser , and properties/planning parser that
-currently uses Orgize. Orgize can also be used to fully parse the contents of a
-headline.
+for the entire file, a headline parser, and properties parser that currently
+uses Orgize. Orgize can also be used to fully parse the contents of a headline.
 
 Org mode itself does not operate on a parse tree. Commands are written to
 operate on raw text, which makes it possible for different commands to interpet
@@ -179,18 +177,18 @@ change priority, keyword, tags, etc.
 When the `headline-parser` feature flag is enabled (default), headline editing
 commands become available. These commands are built on top of the structural
 parser, and parse a single headline at a time. Each time an accessor is called,
-we parse the headline and return it. To modify a headline property, we parse the
-headline, change the property, emit the new headline as text, and then replace
-the text of the section with the headline.
+we parse the headline and return it. To modify a headline, we parse the
+headline, change it, emit the new headline as text, and then replace the text of
+the section with the headline.
 
 We choose this approach so that the headline parser does not need to satisfy the
 identity invariant we provide for the overall file. Additionally, headline
 parsing brings many edge cases that vary between implementations, and even if
-they were consistent. This design means that headlines which client code change
-will be interpreted and reformatted in a standardized way, but only modified
-headlines will be affected.
+they were consistent, it would be labor intensive to handle correctly. This
+design means that headlines which client code change will be interpreted and
+reformatted in a standardized way, but only modified headlines will be affected.
 
-As a convenience, individual properties may be changed by calling `set_keyword`,
+As a convenience, individual changes may be made by calling `set_keyword`,
 `set_priority`, etc on the section. It is also possible to get a `Headline` by
 calling `parse_headline`. This is a value type which provides access to the
 headline properties (including the body text). Calling `to_builder` provides a
@@ -201,25 +199,20 @@ before building a new headline by calling `headline` on it. You can then call
 As with changing the section's raw text, edits which break tree invariants will
 fail.
 
-## Planning/Properties Parser
+## Properties Parser
 
 With `orgize-integration` feature flag (enabled by default), functions that get
-and set planning (scheduled, deadline, closed) and properties become available
-on both `Section` and `HeadlineBuilder`. These work similarly to the headline
-parser, except that they rely on [Orgize](https://github.com/PoiScript/orgize)
-to parse the headline.
+and properties (in the properties drawer) become available on both `Section` and
+`HeadlineBuilder`. These work similarly to the headline parser, except that they
+rely on [Orgize](https://github.com/PoiScript/orgize) to parse the headline.
 
-I'd like to implement my own parser for these as I've done for headlines, since
-this has the potential to reformat the entire headline, and there are some
-inputs Orgize can't handle (e.g., timestamps missing the day of week).
+I'd like to implement my own parser for these as I've done for headlines and
+planning, since this has the potential to reformat the entire headline.
 
 # Future Plans
 
-No promises, but I'd like to clean this up a bit and publish it to crates.io.
-
-Other than that, I would like to implement my own parsing for properties
-drawers, planning, and timestamps to integrate them better. I have no plans to
-replicate any other Orgize functionality.
+I would like to implement my own parsing for properties drawers to integrate
+them better. I have no plans to replicate any other Orgize functionality.
 
 A copy-on-write API for editing trees would be interesting, but I've been
 unhappy with previous prototypes along those lines. [Ropey](https://github.com/cessen/ropey) seems to make it work

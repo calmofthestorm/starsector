@@ -96,7 +96,7 @@ fn main() -> Result<()> {
         //
         // You can specify None for the context to use the default keywords TODO
         // and DONE.
-        let headline = child1.parse_headline(&arena, /*context=*/ None);
+        let headline = child1.headline(&arena, /*context=*/ None);
         let headline = headline.unwrap();
         let mut headline_builder = headline.to_builder();
         headline_builder
