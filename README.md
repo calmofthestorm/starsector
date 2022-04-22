@@ -1,4 +1,6 @@
 [![Build Status](https://app.travis-ci.com/calmofthestorm/starsector.svg?branch=main)](https://app.travis-ci.com/calmofthestorm/starsector)
+[![Crates.io](https://img.shields.io/crates/v/starsector.svg)](https://crates.io/crates/starsector)
+[![Document](https://docs.rs/starsector/badge.svg)](https://docs.rs/starsector)
 
 # Introduction
 
