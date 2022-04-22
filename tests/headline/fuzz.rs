@@ -38,7 +38,7 @@ fn parse_fuzz() {
         }
 
         let doc = arena.parse_str(&s);
-        if let Some(headline) = doc.root.parse_headline(&mut arena, None) {
+        if let Some(headline) = doc.root.headline(&mut arena, None) {
             headline.to_builder().headline(None).unwrap();
         }
     }

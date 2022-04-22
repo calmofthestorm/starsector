@@ -61,6 +61,10 @@ fn main() -> Result<()> {
     assert_eq!(child1.level(&arena), 1);
     child1.set_level(&mut arena, 0).unwrap_err();
     child1.set_level(&mut arena, 1).unwrap();
+
+    // Fails because grandchild1 has level 2.
+    child1.set_level(&mut arena, 2).unwrap_err();
+    grandchild1.set_level(&mut arena, 3).unwrap();
     child1.set_level(&mut arena, 2).unwrap();
 
     child1
@@ -92,7 +96,7 @@ fn main() -> Result<()> {
         //
         // You can specify None for the context to use the default keywords TODO
         // and DONE.
-        let headline = child1.parse_headline(&arena, /*context=*/ None);
+        let headline = child1.headline(&arena, /*context=*/ None);
         let headline = headline.unwrap();
         let mut headline_builder = headline.to_builder();
         headline_builder
@@ -183,19 +187,7 @@ fn main() -> Result<()> {
             .property("FOO", "BAR")
             .unwrap()
             .level(1)
-            .scheduled(Some(orgize::elements::Timestamp::Active {
-                repeater: None,
-                delay: None,
-                start: orgize::elements::Datetime {
-                    year: 2109,
-                    month: 11,
-                    day: 11,
-                    dayname: "Mon".into(),
-                    hour: None,
-                    minute: None,
-                },
-            }))
-            .unwrap();
+            .scheduled(Some(Point::new(Date::new(2109, 11, 11)).into()));
 
         let section2 = arena
             .new_section(
@@ -218,11 +210,11 @@ fn main() -> Result<()> {
         );
         eprintln!(
             "Builder created node scheduled isj {:?}",
-            section1.get_scheduled(&arena, /*context=*/ None).unwrap()
+            section1.scheduled(&arena, /*context=*/ None).unwrap()
         );
         eprintln!(
             "Builder created node closed is: {:?}",
-            section1.get_closed(&arena, /*context=*/ None).unwrap()
+            section1.closed(&arena, /*context=*/ None).unwrap()
         );
 
         // Now repeat for the one we parsed from text.
@@ -233,11 +225,11 @@ fn main() -> Result<()> {
         );
         eprintln!(
             "Starsector created node scheduled is: {:?}",
-            section2.get_scheduled(&arena, /*context=*/ None).unwrap()
+            section2.scheduled(&arena, /*context=*/ None).unwrap()
         );
         eprintln!(
             "Starsector created node deadline is: {:?}",
-            section2.get_deadline(&arena, /*context=*/ None).unwrap()
+            section2.deadline(&arena, /*context=*/ None).unwrap()
         );
 
         println!("The document is:\n{}\n\n-------\n\n", doc.to_rope(&arena));
@@ -249,18 +241,7 @@ fn main() -> Result<()> {
         section2
             .set_scheduled(
                 &mut arena,
-                Some(orgize::elements::Timestamp::Active {
-                    repeater: None,
-                    delay: None,
-                    start: orgize::elements::Datetime {
-                        year: 1971,
-                        month: 11,
-                        day: 11,
-                        dayname: "Mon".into(),
-                        hour: None,
-                        minute: None,
-                    },
-                }),
+                Some(Point::new(Date::new(1971, 11, 11)).into()),
                 /*context=*/ None,
             )
             .unwrap();

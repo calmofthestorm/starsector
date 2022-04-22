@@ -161,6 +161,29 @@ impl HeadlineBuilder {
         self
     }
 
+    pub fn planning(&mut self, planning: Planning<'_>) -> &mut HeadlineBuilder {
+        self.0.planning = planning.into_owned();
+        self
+    }
+
+    pub fn scheduled(&mut self, scheduled: Option<Timestamp<'_>>) -> &mut HeadlineBuilder {
+        let scheduled: Option<Timestamp<'static>> = scheduled.map(|s| s.into_owned());
+        self.0.planning.scheduled = scheduled;
+        self
+    }
+
+    pub fn deadline(&mut self, deadline: Option<Timestamp<'_>>) -> &mut HeadlineBuilder {
+        let deadline: Option<Timestamp<'static>> = deadline.map(|s| s.into_owned());
+        self.0.planning.deadline = deadline;
+        self
+    }
+
+    pub fn closed(&mut self, closed: Option<Timestamp<'_>>) -> &mut HeadlineBuilder {
+        let closed: Option<Timestamp<'static>> = closed.map(|s| s.into_owned());
+        self.0.planning.closed = closed.to_owned();
+        self
+    }
+
     pub fn body(&mut self, body: Rope) -> &mut HeadlineBuilder {
         self.0.body = body;
         self
@@ -209,50 +232,6 @@ impl HeadlineBuilder {
         let id = generate_id_internal(&mut org)?;
         self.0.body = emit_orgize(&org);
         Ok(id)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn planning(
-        &mut self,
-        planning: Option<orgize::elements::Planning<'static>>,
-    ) -> Result<&mut HeadlineBuilder, crate::errors::HeadlineError> {
-        let mut org = parse_orgize(&self.0.body);
-        set_planning_internal(&mut org, planning)?;
-        self.0.body = emit_orgize(&org);
-        Ok(self)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn scheduled(
-        &mut self,
-        scheduled: Option<orgize::elements::Timestamp<'static>>,
-    ) -> Result<&mut HeadlineBuilder, crate::errors::HeadlineError> {
-        let mut org = parse_orgize(&self.0.body);
-        set_scheduled_internal(&mut org, scheduled)?;
-        self.0.body = emit_orgize(&org);
-        Ok(self)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn closed(
-        &mut self,
-        closed: Option<orgize::elements::Timestamp<'static>>,
-    ) -> Result<&mut HeadlineBuilder, crate::errors::HeadlineError> {
-        let mut org = parse_orgize(&self.0.body);
-        set_closed_internal(&mut org, closed)?;
-        self.0.body = emit_orgize(&org);
-        Ok(self)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn deadline(
-        &mut self,
-        deadline: Option<orgize::elements::Timestamp<'static>>,
-    ) -> Result<&mut HeadlineBuilder, crate::errors::HeadlineError> {
-        let mut org = parse_orgize(&self.0.body);
-        set_deadline_internal(&mut org, deadline)?;
-        self.0.body = emit_orgize(&org);
-        Ok(self)
     }
 }
 

@@ -5,7 +5,8 @@ use itertools::Itertools;
 use ropey::{Rope, RopeSlice};
 
 use crate::{
-    Arena, Headline, HeadlineBuilder, HeadlineError, HeadlinePod, RopeExt, Section, StructureError,
+    Arena, Headline, HeadlineBuilder, HeadlineError, HeadlinePod, Planning, RopeExt, Section,
+    StructureError,
 };
 
 lazy_static! {
@@ -19,6 +20,12 @@ lazy_static! {
 #[derive(Debug, Clone)]
 pub struct Context<'a> {
     pub(crate) keywords: Cow<'a, str>,
+}
+
+impl Default for Context<'static> {
+    fn default() -> Context<'static> {
+        Context::new("TODO:DONE".into())
+    }
 }
 
 impl Context<'_> {
@@ -45,7 +52,7 @@ pub(crate) fn context_or<'a, 'b>(context: Option<&'b Context<'a>>) -> &'b Contex
 }
 
 impl Section {
-    pub fn parse_headline(self, arena: &Arena, context: Option<&Context>) -> Option<Headline> {
+    pub fn headline(self, arena: &Arena, context: Option<&Context>) -> Option<Headline> {
         if self.level(&arena) > 0 {
             Some(parse_valid_single_headline(
                 self.text(&arena).slice(..),
@@ -176,6 +183,7 @@ impl HeadlineBuilder {
             keyword: self.0.keyword.clone(),
             title: self.0.title.clone(),
             commented: self.0.commented,
+            planning: self.0.planning.clone(),
             body: self.0.body.clone(),
         }))
     }
@@ -245,10 +253,34 @@ impl HeadlinePod {
         headline.append(self.title.clone());
 
         if !self.raw_tags_string.is_empty() {
-            // FIXME: We could include this in the raw to avoid needing a new string here.
+            // FIXME: We could include this in the raw to avoid needing a new
+            // string here.
             headline.push_str(" :");
             headline.append(self.raw_tags_rope.clone());
             headline.push(':');
+        }
+
+        // Planning line not well defined without at least one info pattern.
+        if self.planning != Planning::default() {
+            headline.push('\n');
+            for _ in 0..self.level {
+                headline.push(' ');
+            }
+
+            if let Some(scheduled) = self.planning.scheduled.as_ref() {
+                headline.push_str(" SCHEDULED: ");
+                headline.push_string(scheduled.to_string());
+            }
+
+            if let Some(deadline) = self.planning.deadline.as_ref() {
+                headline.push_str(" DEADLINE: ");
+                headline.push_string(deadline.to_string());
+            }
+
+            if let Some(closed) = self.planning.closed.as_ref() {
+                headline.push_str(" CLOSED: ");
+                headline.push_string(closed.to_string());
+            }
         }
 
         if !self.body.is_empty() {

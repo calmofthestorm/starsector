@@ -7,6 +7,44 @@ use crate::*;
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct Headline(pub(crate) HeadlinePod);
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlanningKeyword {
+    Deadline,
+    Scheduled,
+    Closed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InfoPattern {
+    pub keyword: PlanningKeyword,
+    pub timestamp: Timestamp<'static>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Planning<'a> {
+    pub deadline: Option<Timestamp<'a>>,
+    pub scheduled: Option<Timestamp<'a>>,
+    pub closed: Option<Timestamp<'a>>,
+}
+
+impl Planning<'_> {
+    pub fn into_owned(self) -> Planning<'static> {
+        Planning {
+            scheduled: self.scheduled.map(|s| s.into_owned()),
+            closed: self.closed.map(|s| s.into_owned()),
+            deadline: self.deadline.map(|s| s.into_owned()),
+        }
+    }
+
+    pub fn to_borrowed<'a>(&'a self) -> Planning<'a> {
+        Planning {
+            scheduled: self.scheduled.as_ref().map(|s| s.to_borrowed()),
+            closed: self.closed.as_ref().map(|s| s.to_borrowed()),
+            deadline: self.deadline.as_ref().map(|s| s.to_borrowed()),
+        }
+    }
+}
+
 impl Headline {
     pub fn level(&self) -> u16 {
         self.0.level
@@ -42,6 +80,23 @@ impl Headline {
 
     pub fn keyword(&self) -> Option<&Rope> {
         self.0.keyword.as_ref()
+    }
+
+    // A missing planning line is denoted as having the default value.
+    pub fn planning(&self) -> &Planning {
+        &self.0.planning
+    }
+
+    pub fn scheduled(&self) -> Option<Timestamp<'_>> {
+        self.0.planning.scheduled.as_ref().map(|s| s.to_borrowed())
+    }
+
+    pub fn deadline(&self) -> Option<Timestamp<'_>> {
+        self.0.planning.deadline.as_ref().map(|s| s.to_borrowed())
+    }
+
+    pub fn closed(&self) -> Option<Timestamp<'_>> {
+        self.0.planning.closed.as_ref().map(|s| s.to_borrowed())
     }
 
     pub fn title(&self) -> &Rope {
@@ -83,33 +138,9 @@ impl Headline {
         });
         Ok(p)
     }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn planning(&self) -> Result<Option<orgize::elements::Planning<'static>>, HeadlineError> {
-        let org = parse_orgize(&self.0.body);
-        planning_internal(&org)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn scheduled(&self) -> Result<Option<orgize::elements::Timestamp<'static>>, HeadlineError> {
-        let org = parse_orgize(&self.0.body);
-        get_scheduled_internal(&org)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn deadline(&self) -> Result<Option<orgize::elements::Timestamp<'static>>, HeadlineError> {
-        let org = parse_orgize(&self.0.body);
-        get_deadline_internal(&org)
-    }
-
-    #[cfg(feature = "orgize-integration")]
-    pub fn closed(&self) -> Result<Option<orgize::elements::Timestamp<'static>>, HeadlineError> {
-        let org = parse_orgize(&self.0.body);
-        get_closed_internal(&org)
-    }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct HeadlinePod {
     pub level: u16,
     pub priority: Option<char>,
@@ -121,6 +152,8 @@ pub(crate) struct HeadlinePod {
     pub keyword: Option<Rope>,
     pub title: Rope,
     pub commented: bool,
+
+    pub planning: Planning<'static>,
 
     pub(crate) body: Rope,
 }
@@ -141,6 +174,7 @@ impl Default for HeadlinePod {
             keyword: None,
             title: Rope::default(),
             commented: false,
+            planning: Planning::default(),
             body: Rope::default(),
         }
     }

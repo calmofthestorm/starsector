@@ -192,7 +192,7 @@ fn test_parsing() {
         let doc = arena.parse_str(text);
         let root = doc.root;
         if text.ends_with("\n") {
-            assert_eq!(*root.text(&arena), text[..text.len() - 1]);
+            assert_eq!(root.text(&arena), text[..text.len() - 1]);
         } else {
             assert_eq!(root.text(&arena), *text);
         }
@@ -225,7 +225,7 @@ fn test_parsing() {
         assert_eq!(child_id.parent(&arena), Some(root));
 
         if text.ends_with("\n") {
-            assert_eq!(*child_id.text(&arena), text[..text.len() - 1]);
+            assert_eq!(child_id.text(&arena), text[..text.len() - 1]);
         } else {
             assert_eq!(child_id.text(&arena), *text);
         }

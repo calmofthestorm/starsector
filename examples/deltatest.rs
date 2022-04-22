@@ -310,7 +310,7 @@ fn do_identity_fuzz(
         let mut count = 1;
 
         let level = starsector::util::lex_level(&node.text(&arena).slice(..));
-        if let Some(headline) = node.parse_headline(arena, None) {
+        if let Some(headline) = node.headline(arena, None) {
             if headline.level() != level {
                 violations += 1;
             }
@@ -892,7 +892,7 @@ fn parse_compare_node<'a>(ours: &Section, arena: &Arena) -> (usize, usize) {
         return (1, 1);
     };
 
-    match ours.parse_headline(arena, None) {
+    match ours.headline(arena, None) {
         Some(parsed) => {
             violations += parse_compare_headline(headline_text, &parsed, other.title(&org));
         }

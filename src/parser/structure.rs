@@ -38,11 +38,24 @@ pub fn headline_level_str(input: &str, offset: usize) -> u16 {
     0
 }
 
-// Returns a pair of the current line (including terminal \n if present) and the
-// rest of the string.
+// Returns a pair of the current line and the rest of the string. If the current
+// line is terminated by a \n, that will begin the second returned value. In
+// other words, the first value will never contain a newline.
 pub fn line<'a>(input: &'a RopeSlice<'a>) -> (RopeSlice<'a>, RopeSlice<'a>) {
     let split = next_line(input, 0);
     (input.slice_bytes(..split), input.slice_bytes(split..))
+}
+
+// Returns a pair of the current line and the rest of the string, consuming the
+// newline that terminates the current line if present.
+pub fn consuming_line<'a>(input: &'a RopeSlice<'a>) -> (RopeSlice<'a>, RopeSlice<'a>) {
+    let split = next_line(input, 0);
+    let line = input.slice_bytes(..split);
+    let rest = input.slice_bytes(split..);
+    match rest.get_char(0) {
+        Some('\n') => (line, rest.slice(1..)),
+        _ => (line, rest),
+    }
 }
 
 // Returns either the start of the next line, or input.len() if none.
@@ -189,6 +202,72 @@ mod tests {
         let r = Rope::from(std::str::from_utf8(s).unwrap());
         let r = r.slice(..);
         crate::parser::structure::headline_level(&r, offset)
+    }
+
+    #[test]
+    fn test_line() {
+        let empty = Rope::default();
+        assert_eq!((empty.slice(..), empty.slice(..)), line(&empty.slice(..)));
+
+        let newline = Rope::from("\n");
+        assert_eq!(
+            (empty.slice(..), newline.slice(..)),
+            line(&newline.slice(..))
+        );
+
+        let term = Rope::from("* Hello\n");
+        assert_eq!(
+            (term.slice(..term.len_chars() - 1), newline.slice(..)),
+            line(&term.slice(..))
+        );
+
+        let multi = Rope::from("* Hello\nWorld");
+        assert_eq!(
+            (
+                Rope::from("* Hello").slice(..),
+                Rope::from("\nWorld").slice(..)
+            ),
+            line(&multi.slice(..))
+        );
+    }
+
+    #[test]
+    fn test_consuming_line() {
+        let empty = Rope::default();
+        assert_eq!(
+            (empty.slice(..), empty.slice(..)),
+            consuming_line(&empty.slice(..))
+        );
+
+        let newline = Rope::from("\n");
+        assert_eq!(
+            (empty.slice(..), empty.slice(..)),
+            consuming_line(&newline.slice(..))
+        );
+
+        let term = Rope::from("* Hello\n");
+        assert_eq!(
+            (term.slice(..term.len_chars() - 1), empty.slice(..)),
+            consuming_line(&term.slice(..))
+        );
+
+        let multi = Rope::from("* Hello\nWorld");
+        assert_eq!(
+            (
+                Rope::from("* Hello").slice(..),
+                Rope::from("World").slice(..)
+            ),
+            consuming_line(&multi.slice(..))
+        );
+
+        let many = Rope::from("* Hello\n\nWorld");
+        assert_eq!(
+            (
+                Rope::from("* Hello").slice(..),
+                Rope::from("\nWorld").slice(..)
+            ),
+            consuming_line(&many.slice(..))
+        );
     }
 
     #[test]
