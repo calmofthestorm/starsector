@@ -1,4 +1,4 @@
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use std::convert::{TryFrom, TryInto};
 use std::fmt::{self, Display, Formatter, Write};
 

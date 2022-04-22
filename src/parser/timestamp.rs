@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use chrono::{NaiveDate, NaiveTime};
 
 use nom::{
@@ -45,7 +43,7 @@ fn parse_dayname(input: &str) -> IResult<&str, &str, ()> {
 }
 
 impl Time {
-    pub(crate) fn parse(input: &str) -> IResult<&str, Time, ()> {
+    pub fn parse(input: &str) -> IResult<&str, Time, ()> {
         let (input, hour) = parse_integer_1_2(input)?;
         let (input, _) = tag(":")(input)?;
         let (input, minute) = parse_integer_2(input)?;
@@ -56,14 +54,14 @@ impl Time {
 }
 
 impl Times {
-    pub(crate) fn parse(input: &str) -> IResult<&str, Times, ()> {
+    pub fn parse(input: &str) -> IResult<&str, Times, ()> {
         let (input, (start, end)) = separated_pair(Time::parse, char('-'), Time::parse)(input)?;
         Ok((input, Times(start, end)))
     }
 }
 
 impl TimeSpec {
-    pub(crate) fn parse(input: &str) -> IResult<&str, TimeSpec, ()> {
+    pub fn parse(input: &str) -> IResult<&str, TimeSpec, ()> {
         let (input, start) = Time::parse(input)?;
         match opt(preceded(char('-'), Time::parse))(input) {
             Ok((input, Some(end))) => Ok((input, TimeSpec::Times(Times(start, end)))),
@@ -73,7 +71,7 @@ impl TimeSpec {
 }
 
 impl RepeaterMark {
-    fn parse(input: &str) -> IResult<&str, RepeaterMark, ()> {
+    pub fn parse(input: &str) -> IResult<&str, RepeaterMark, ()> {
         let (input, mark) = alt((tag("++"), tag("+"), tag(".+")))(input)?;
         Ok((
             input,
@@ -88,7 +86,7 @@ impl RepeaterMark {
 }
 
 impl DelayMark {
-    fn parse(input: &str) -> IResult<&str, DelayMark, ()> {
+    pub fn parse(input: &str) -> IResult<&str, DelayMark, ()> {
         let (input, mark) = alt((tag("--"), tag("-")))(input)?;
         Ok((
             input,
@@ -102,7 +100,7 @@ impl DelayMark {
 }
 
 impl TimeUnit {
-    fn parse(input: &str) -> IResult<&str, TimeUnit, ()> {
+    pub fn parse(input: &str) -> IResult<&str, TimeUnit, ()> {
         let (input, unit) = one_of("hdwmy")(input)?;
         Ok((
             input,
@@ -119,7 +117,7 @@ impl TimeUnit {
 }
 
 impl Interval {
-    fn parse(input: &str) -> IResult<&str, Interval, ()> {
+    pub fn parse(input: &str) -> IResult<&str, Interval, ()> {
         let (input, value) = map_res(digit1, |num| usize::from_str_radix(num, 10))(input)?;
         let (input, unit) = TimeUnit::parse(input)?;
         Ok((input, Interval::new(value, unit)))
@@ -127,7 +125,7 @@ impl Interval {
 }
 
 impl Repeater {
-    fn parse(input: &str) -> IResult<&str, Repeater, ()> {
+    pub fn parse(input: &str) -> IResult<&str, Repeater, ()> {
         let (input, mark) = RepeaterMark::parse(input)?;
         let (input, interval) = Interval::parse(input)?;
         Ok((input, Repeater { mark, interval }))
@@ -135,7 +133,7 @@ impl Repeater {
 }
 
 impl Delay {
-    fn parse(input: &str) -> IResult<&str, Delay, ()> {
+    pub fn parse(input: &str) -> IResult<&str, Delay, ()> {
         let (input, mark) = DelayMark::parse(input)?;
         let (input, interval) = Interval::parse(input)?;
         Ok((input, Delay { mark, interval }))
@@ -143,7 +141,7 @@ impl Delay {
 }
 
 impl RepeaterAndDelay {
-    fn parse(input: &str) -> IResult<&str, RepeaterAndDelay, ()> {
+    pub fn parse(input: &str) -> IResult<&str, RepeaterAndDelay, ()> {
         let (input, repeater, delay) = if let Ok((input, (repeater, delay))) =
             pair(Repeater::parse, preceded(space1, Delay::parse))(input)
         {
@@ -164,7 +162,7 @@ impl RepeaterAndDelay {
 }
 
 impl Date {
-    fn parse(input: &str) -> IResult<&str, Date, ()> {
+    pub fn parse(input: &str) -> IResult<&str, Date, ()> {
         let (input, (year, month, day)) = tuple((
             parse_integer_4,
             preceded(char('-'), parse_integer_2),
@@ -228,14 +226,14 @@ fn parse_atomic_timestamp(input: &str) -> IResult<&str, (Point, Option<Time>), (
 }
 
 impl Point {
-    fn parse(input: &str) -> IResult<&str, Point, ()> {
+    pub fn parse(input: &str) -> IResult<&str, Point, ()> {
         let (input, (point, _none)) = verify(parse_atomic_timestamp, |(_, e)| e.is_none())(input)?;
         Ok((input, point))
     }
 }
 
 impl Range {
-    fn parse(input: &str) -> IResult<&str, Range, ()> {
+    pub fn parse(input: &str) -> IResult<&str, Range, ()> {
         let (input, (start, mut end)) =
             separated_pair(Point::parse, tag("--"), Point::parse)(input)?;
         end.active = start.active;
@@ -244,7 +242,7 @@ impl Range {
 }
 
 impl TimeRange {
-    fn parse(input: &str) -> IResult<&str, TimeRange, ()> {
+    pub fn parse(input: &str) -> IResult<&str, TimeRange, ()> {
         let (input, (start, end_time)) =
             verify(parse_atomic_timestamp, |(_, e)| e.is_some())(input)?;
         let end_time = end_time.expect("verified");
@@ -253,7 +251,7 @@ impl TimeRange {
 }
 
 impl Diary<'_> {
-    fn parse<'a>(input: &'a str) -> IResult<&'a str, Diary<'a>, ()> {
+    pub fn parse<'a>(input: &'a str) -> IResult<&'a str, Diary<'a>, ()> {
         map(
             verify(
                 delimited(tag("<%%("), is_not("\n>"), char('>')),
@@ -265,7 +263,7 @@ impl Diary<'_> {
 }
 
 impl Timestamp<'_> {
-    fn parse(input: &str) -> IResult<&str, Timestamp<'_>, ()> {
+    pub fn parse(input: &str) -> IResult<&str, Timestamp<'_>, ()> {
         alt((
             map(Diary::parse, |d| Timestamp::Diary(d)),
             map(Range::parse, |r| Timestamp::Range(r)),
@@ -873,888 +871,5 @@ mod tests {
 
             assert!(Timestamp::parse("<%%(<2020-01-01>)>").is_err())
         }
-
-        //     #[test]
-        //     fn test_parse_activity() {
-        //         assert_eq!(parse_activity(""), None);
-        //         assert_eq!(parse_activity("<"), None);
-        //         assert_eq!(parse_activity(">"), None);
-        //         assert_eq!(parse_activity("<>"), Some((Activity::Active, "")));
-        //         assert_eq!(parse_activity("[]"), Some((Activity::Inactive, "")));
-        //         assert_eq!(parse_activity("[hello] world"), None);
-        //         assert_eq!(parse_activity("<hello>\nhow are you"), None);
-        //         assert_eq!(
-        //             parse_activity("<2020-01-01>"),
-        //             Some((Activity::Active, "2020-01-01"))
-        //         );
-        //         assert_eq!(parse_activity("nope <2020-01-01 Mon>"), None);
-        //         assert_eq!(
-        //             parse_activity("<2020-01-01 Mon>"),
-        //             Some((Activity::Active, "2020-01-01 Mon"))
-        //         );
-        //         assert_eq!(
-        //             parse_activity("[2020-01-01 Mon]"),
-        //             Some((Activity::Inactive, "2020-01-01 Mon"))
-        //         );
-        //         assert_eq!(parse_activity("[2020-01-01 Mon>"), None);
-        //         assert_eq!(parse_activity("[2020-01-01 Mon>"), None);
-        //     }
-
-        //     #[test]
-        //     fn test_parse_ymd() {
-        //         assert_eq!(
-        //             parse_ymd("2020-03-01"),
-        //             Some((NaiveDate::from_ymd(2020, 3, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-03-01 Sun"),
-        //             Some((NaiveDate::from_ymd(2020, 3, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-3-01 Zeepsday"),
-        //             Some((NaiveDate::from_ymd(2020, 3, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-07-1 Sun"),
-        //             Some((NaiveDate::from_ymd(2020, 7, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-1-1 FRI"),
-        //             Some((NaiveDate::from_ymd(2020, 1, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-1-1 .+1d"),
-        //             Some((NaiveDate::from_ymd(2020, 1, 1).into(), ".+1d"))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-1-1 .+1d/2d"),
-        //             Some((NaiveDate::from_ymd(2020, 1, 1).into(), ".+1d/2d"))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-03-01"),
-        //             Some((NaiveDate::from_ymd(2020, 3, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-03-01 Sun"),
-        //             Some((NaiveDate::from_ymd(2020, 3, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-3-01 Zeepsday"),
-        //             Some((NaiveDate::from_ymd(2020, 3, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-07-1 Sun"),
-        //             Some((NaiveDate::from_ymd(2020, 7, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-1-1 FRI"),
-        //             Some((NaiveDate::from_ymd(2020, 1, 1).into(), ""))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-1-1 .+1d"),
-        //             Some((NaiveDate::from_ymd(2020, 1, 1).into(), ".+1d"))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("2020-1-1 .+1d/2d"),
-        //             Some((NaiveDate::from_ymd(2020, 1, 1).into(), ".+1d/2d"))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("0000-1-1 .+1d/2d"),
-        //             Some((NaiveDate::from_ymd(0, 1, 1).into(), ".+1d/2d"))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("0005-1-1 .+1d/2d"),
-        //             Some((NaiveDate::from_ymd(5, 1, 1).into(), ".+1d/2d"))
-        //         );
-
-        //         assert_eq!(
-        //             parse_ymd("9999-1-1 .+1d/2d"),
-        //             Some((NaiveDate::from_ymd(9999, 1, 1).into(), ".+1d/2d"))
-        //         );
-
-        //         // FIXME
-        //         // assert_eq!(
-        //         //     parse_ymd("2-1-1 .+1d/2d"),
-        //         //     None,
-        //         // );
-
-        //         // FIXME
-        //         // assert_eq!(
-        //         //     parse_ymd("2020-13-1 "),
-        //         //     Some((NaiveDate::from_ymd(2021, 1, 1).into(), ""))
-        //         // );
-
-        //         // FIXME
-        //         // assert_eq!(
-        //         //     parse_ymd("2020-1-32 "),
-        //         //     Some((NaiveDate::from_ymd(2021, 2, 1).into(), ""))
-        //         // );
-
-        //         // FIXME
-        //         // assert_eq!(
-        //         //     parse_ymd("2019-02-29 "),
-        //         //     Some((NaiveDate::from_ymd(2019, 3, 1).into(), ""))
-        //         // );
-
-        //         assert_eq!(parse_ymd("-1-1"), None,);
-        //         assert_eq!(parse_ymd("1-1"), None,);
-        //         assert_eq!(parse_ymd("1"), None,);
-        //         assert_eq!(parse_ymd(""), None,);
-        //     }
-
-        //     #[test]
-        //     fn test_parse_time() {
-        //         assert_eq!(parse_time(""), None);
-        //         assert_eq!(parse_time(":"), None);
-        //         assert_eq!(parse_time("9"), None);
-        //         assert_eq!(parse_time("9-9"), None);
-        //         assert_eq!(
-        //             parse_time("00:09-00:10"),
-        //             Some((NaiveTime::from_hms(0, 9, 0).into(), "-00:10"))
-        //         );
-
-        //         // FIXME
-        //         // assert_eq!(parse_time("5:5"), None);
-
-        //         assert_eq!(
-        //             parse_time("5:05"),
-        //             Some((NaiveTime::from_hms(5, 5, 0).into(), ""))
-        //         );
-        //         assert_eq!(
-        //             parse_time("05:05"),
-        //             Some((NaiveTime::from_hms(5, 5, 0).into(), ""))
-        //         );
-        //         assert_eq!(
-        //             parse_time("00:05\tbees"),
-        //             Some((NaiveTime::from_hms(0, 5, 0).into(), "bees"))
-        //         );
-        //         assert_eq!(
-        //             parse_time("00:00 .+1w"),
-        //             Some((NaiveTime::from_hms(0, 0, 0).into(), ".+1w"))
-        //         );
-        //         assert_eq!(
-        //             parse_time("0:00"),
-        //             Some((NaiveTime::from_hms(0, 0, 0).into(), ""))
-        //         );
-        //         assert_eq!(
-        //             parse_time("0:01"),
-        //             Some((NaiveTime::from_hms(0, 1, 0).into(), ""))
-        //         );
-        //     }
-
-        //     #[test]
-        //     fn test_parse_point_only() {
-        //         assert_eq!(parse_point_only(""), None);
-        //         assert_eq!(parse_point_only(" "), None);
-        //         let date = NaiveDate::from_ymd(2020, 1, 1).into();
-        //         let time = Some(NaiveTime::from_hms(5, 37, 0).into());
-        //         assert_eq!(
-        //             parse_point_only("<2020-01-01>"),
-        //             Some((
-        //                 Activity::Active,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie: RepeaterAndDelay::default()
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("<2020-01-01 Fri>"),
-        //             Some((
-        //                 Activity::Active,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie: RepeaterAndDelay::default()
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("<2020-01-01 Sat 05:37>"),
-        //             Some((
-        //                 Activity::Active,
-        //                 Point {
-        //                     date,
-        //                     time,
-        //                     cookie: RepeaterAndDelay::default()
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 05:37]"),
-        //             Some((
-        //                 Activity::Inactive,
-        //                 Point {
-        //                     date,
-        //                     time,
-        //                     cookie: RepeaterAndDelay::default()
-        //                 }
-        //             ))
-        //         );
-        //         // FIXME -- day, delay, repeater, time are unambiguous and Org accepts them in any order. This and general case.
-        //         // assert_eq!(
-        //         //     parse_point_only("[2020-01-01 05:37 Mon]"),
-        //         //     Some((
-        //         //         Activity::Inactive,
-        //         //         Point {
-        //         //             date,
-        //         //             time,
-        //         //             cookie: RepeaterAndDelay::default()
-        //         //         }
-        //         //     ))
-        //         // );
-
-        //         // day x delay x repeater x habit x time
-
-        //         let delay = Some(Delay {
-        //             mark: DelayMark::First,
-        //             unit: Unit::Week,
-        //             value: 1,
-        //         });
-        //         let repeater = Some(Repeater {
-        //             mark: RepeaterMark::Restart,
-        //             unit: Unit::Day,
-        //             value: 2,
-        //             habit: None,
-        //         });
-        //         let with_habit = repeater.map(|r| Repeater {
-        //             habit: Some((5, Unit::Week)),
-        //             ..r
-        //         });
-        //         let inactive = Activity::Inactive;
-
-        //         let cookie = RepeaterAndDelay {
-        //             delay,
-        //             repeater: None,
-        //         };
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri --1w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri --1w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 --1w]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 --1w ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri --1w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri --1w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 --1w]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 --1w ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-
-        //         let cookie = RepeaterAndDelay {
-        //             delay: None,
-        //             repeater,
-        //         };
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d ]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d ]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-
-        //         let cookie = RepeaterAndDelay {
-        //             delay: None,
-        //             repeater: with_habit,
-        //         };
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d/5w ]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d/5w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d/5w ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d/5w]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d/5w ]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d/5w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d/5w ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d/5w]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-
-        //         let cookie = RepeaterAndDelay::default();
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-
-        //         let cookie = RepeaterAndDelay { delay, repeater };
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d --1w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri --1w .+2d ]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d --1w]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 --1w .+2d ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d --1w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri --1w .+2d ]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d --1w]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 --1w .+2d ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-
-        //         let cookie = RepeaterAndDelay {
-        //             delay,
-        //             repeater: with_habit,
-        //         };
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri --1w .+2d/5w ]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d/5w --1w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 --1w .+2d/5w ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d/5w --1w]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri --1w .+2d/5w ]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri .+2d/5w --1w]"),
-        //             Some((
-        //                 inactive,
-        //                 Point {
-        //                     date,
-        //                     time: None,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 --1w .+2d/5w ]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             parse_point_only("[2020-01-01 Fri 05:37 .+2d/5w --1w]"),
-        //             Some((inactive, Point { date, time, cookie }))
-        //         );
-        //     }
-
-        //     #[test]
-        //     fn test_parse_value_unit_only() {
-        //         assert_eq!(parse_value_unit_only("5d"), Some((5, Unit::Day)));
-        //         assert_eq!(parse_value_unit_only("0h"), Some((0, Unit::Hour)));
-        //         assert_eq!(parse_value_unit_only("1h"), Some((1, Unit::Hour)));
-        //         assert_eq!(parse_value_unit_only("2m"), Some((2, Unit::Month)));
-        //         assert_eq!(parse_value_unit_only("02w"), Some((2, Unit::Week)));
-        //         assert_eq!(parse_value_unit_only("02w "), None);
-        //         assert_eq!(parse_value_unit_only("222y"), Some((222, Unit::Year)));
-        //         assert_eq!(parse_value_unit_only(""), None);
-        //         assert_eq!(parse_value_unit_only("5"), None);
-        //         assert_eq!(parse_value_unit_only("y"), None);
-        //         assert_eq!(parse_value_unit_only("y5"), None);
-        //     }
-
-        //     #[test]
-        //     fn test_parse_cookie() {
-        //         assert_eq!(parse_cookie(""), None);
-        //         assert_eq!(parse_cookie("-1"), None);
-        //         assert_eq!(parse_cookie("1"), None);
-        //         assert_eq!(parse_cookie("+"), None);
-        //         assert_eq!(parse_cookie("1d"), None);
-        //         assert_eq!(
-        //             parse_cookie("+1d"),
-        //             Some((
-        //                 Ok(Repeater {
-        //                     mark: RepeaterMark::Cumulate,
-        //                     habit: None,
-        //                     value: 1,
-        //                     unit: Unit::Day
-        //                 }),
-        //                 ""
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_cookie("++2w -3d"),
-        //             Some((
-        //                 Ok(Repeater {
-        //                     mark: RepeaterMark::CatchUp,
-        //                     habit: None,
-        //                     value: 2,
-        //                     unit: Unit::Week
-        //                 }),
-        //                 "-3d"
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_cookie(".+2w hello"),
-        //             Some((
-        //                 Ok(Repeater {
-        //                     mark: RepeaterMark::Restart,
-        //                     habit: None,
-        //                     value: 2,
-        //                     unit: Unit::Week
-        //                 }),
-        //                 "hello"
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_cookie("+1m/2d"),
-        //             Some((
-        //                 Ok(Repeater {
-        //                     mark: RepeaterMark::Cumulate,
-        //                     habit: Some((2, Unit::Day)),
-        //                     value: 1,
-        //                     unit: Unit::Month
-        //                 }),
-        //                 ""
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_cookie("++2w/3y"),
-        //             Some((
-        //                 Ok(Repeater {
-        //                     mark: RepeaterMark::CatchUp,
-        //                     habit: Some((3, Unit::Year)),
-        //                     value: 2,
-        //                     unit: Unit::Week
-        //                 }),
-        //                 ""
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_cookie(".+3w/4w"),
-        //             Some((
-        //                 Ok(Repeater {
-        //                     mark: RepeaterMark::Restart,
-        //                     habit: Some((4, Unit::Week)),
-        //                     value: 3,
-        //                     unit: Unit::Week
-        //                 }),
-        //                 ""
-        //             ))
-        //         );
-        //         assert_eq!(
-        //             parse_cookie(".+3w/4w "),
-        //             Some((
-        //                 Ok(Repeater {
-        //                     mark: RepeaterMark::Restart,
-        //                     habit: Some((4, Unit::Week)),
-        //                     value: 3,
-        //                     unit: Unit::Week
-        //                 }),
-        //                 ""
-        //             ))
-        //         );
-        //     }
-
-        //     #[test]
-        //     fn test_parse_cookies_only() {
-        //         assert_eq!(parse_cookies_only(""), Some(RepeaterAndDelay::default()));
-        //         assert_eq!(parse_cookies_only("5"), None);
-        //         assert_eq!(parse_cookies_only("-"), None);
-        //         assert_eq!(parse_cookies_only(" "), Some(RepeaterAndDelay::default()));
-
-        //         let repeater = Some(Repeater {
-        //             mark: RepeaterMark::Restart,
-        //             value: 5,
-        //             habit: None,
-        //             unit: Unit::Day,
-        //         });
-        //         let delay = Some(Delay {
-        //             mark: DelayMark::All,
-        //             value: 7,
-        //             unit: Unit::Week,
-        //         });
-
-        //         assert_eq!(
-        //             parse_cookies_only(".+5d"),
-        //             Some(RepeaterAndDelay {
-        //                 repeater,
-        //                 delay: None
-        //             })
-        //         );
-        //         assert_eq!(
-        //             parse_cookies_only(".+5d "),
-        //             Some(RepeaterAndDelay {
-        //                 repeater,
-        //                 delay: None
-        //             })
-        //         );
-        //         assert_eq!(
-        //             parse_cookies_only("-7w"),
-        //             Some(RepeaterAndDelay {
-        //                 repeater: None,
-        //                 delay
-        //             })
-        //         );
-        //     }
-
-        //     #[test]
-        //     fn test_parse() {
-        //         let date = NaiveDate::from_ymd(2020, 1, 1).into();
-        //         let time = Some(NaiveTime::from_hms(13, 29, 0).into());
-        //         let end_time = NaiveTime::from_hms(19, 27, 0).into();
-        //         let times = Times(time.unwrap(), end_time);
-        //         let cookie = RepeaterAndDelay::default();
-        //         let active = Activity::Active;
-        //         let inactive = Activity::Inactive;
-        //         let start = Point {
-        //             date,
-        //             time,
-        //             cookie: RepeaterAndDelay {
-        //                 delay: None,
-        //                 repeater: Some(Repeater {
-        //                     mark: RepeaterMark::Restart,
-        //                     habit: None,
-        //                     unit: Unit::Day,
-        //                     value: 1,
-        //                 }),
-        //             },
-        //         };
-        //         let end = Point {
-        //             date: NaiveDate::from_ymd(2020, 1, 8).into(),
-        //             time: None,
-        //             cookie: RepeaterAndDelay {
-        //                 delay: None,
-        //                 repeater: Some(Repeater {
-        //                     habit: None,
-        //                     mark: RepeaterMark::Cumulate,
-        //                     unit: Unit::Day,
-        //                     value: 2,
-        //                 }),
-        //             },
-        //         };
-        //         assert_eq!(Timestamp::try_from("<2020-01-01 Mon 13:29]"), Err(()));
-        //         assert_eq!(
-        //             Timestamp::try_from("<2020-01-01 Mon 13:29>"),
-        //             Ok(Timestamp::Point(active, Point { date, time, cookie }))
-        //         );
-        //         assert_eq!(
-        //             Timestamp::try_from("<2020-01-01 Mon 13:29 .+1d>--<2020-01-08 Mon +2d>"),
-        //             Ok(Timestamp::Range(active, Range { start, end }))
-        //         );
-        //         assert_eq!(
-        //             Timestamp::try_from("[2020-01-01 Mon 13:29-15:37 .+1d]--[2020-01-08 Mon +2d]"),
-        //             Err(())
-        //         );
-        //         assert_eq!(
-        //             Timestamp::try_from("[2020-01-01 Mon 13:29 .+1d]--[2020-01-08 Mon +2d]"),
-        //             Ok(Timestamp::Range(inactive, Range { start, end }))
-        //         );
-        //         assert_eq!(
-        //             Timestamp::try_from("[2020-01-01 Mon 13:29 .+1d]-[2020-01-08 Mon +2d]"),
-        //             Err(())
-        //         );
-        //         assert_eq!(
-        //             Timestamp::try_from("[2020-01-01 Mon 13:29 .+1d>--[2020-01-08 Mon +2d]"),
-        //             Err(())
-        //         );
-        //         assert_eq!(
-        //             "<%%(diary-date 5 5 2005)>".try_into(),
-        //             Ok(Timestamp::Diary(Diary(Cow::Borrowed(
-        //                 "diary-date 5 5 2005"
-        //             ))))
-        //         );
-        //         assert_eq!(Timestamp::try_from("<%%diary-date 5 5 2005>"), Err(()));
-        //         assert_eq!(Timestamp::try_from("<%(diary-date 5 5 2005)>"), Err(()));
-        //         assert_eq!(Timestamp::try_from("<%%(diary-date 5 5 2005)]"), Err(()));
-        //         assert_eq!(Timestamp::try_from("[%%(diary-date 5 5 2005)]"), Err(()));
-        //         assert_eq!(Timestamp::try_from("[2020-01-01 Mon 13:29-19:27>"), Err(()));
-        //         assert_eq!(
-        //             "[2020-01-01 Mon 13:29-19:27]".try_into(),
-        //             Ok(Timestamp::TimeRange(
-        //                 inactive,
-        //                 TimeRange {
-        //                     times,
-        //                     date,
-        //                     cookie
-        //                 }
-        //             ))
-        //         );
     }
 }

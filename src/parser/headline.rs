@@ -1,5 +1,4 @@
 use nom::{
-    branch::alt,
     bytes::complete::{tag, take_till, take_while},
     character::complete::{char, one_of, space0},
     combinator::verify,
