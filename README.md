@@ -108,7 +108,7 @@ require copying all data, defeating the purpose.
 There is no one specification for the Org format. The
 [draft spec](https://orgmode.org/worg/dev/org-syntax.html), `org-element.el`, and Org
 mode commands disagree on how to handle certain edge cases. Different Org
-mode commnads may even be inconsistent among themselves. Yet in practice, the
+mode commands may even be inconsistent among themselves. Yet in practice, the
 behavior is usually consistent, and in the cases where it varies, it is unlikely
 that the user would notice or care. See the [Orgize issue tracker](https://github.com/PoiScript/orgize/issues) (open and
 closed) for examples.
