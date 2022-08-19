@@ -19,24 +19,24 @@ headline-parser = ["regex", "lazy_static", "nom", "chrono"]
 orgize-integration = ["orgize", "headline-parser", "indexmap"]
 
 [dependencies]
-hex = "0"
+hex = "0.4"
 indexmap = { version = "1", optional = true}
 indextree = "4"
-iobuffer = "0"
-itertools = "0"
+iobuffer = "0.2"
+itertools = "0.10"
 lazy_static = { version = "1", optional = true}
-log = "0"
+log = "0.4"
 memchr = "2"
 nom = { version = "5", optional = true }
-orgize = { version = "0", optional = true, features = ["chrono", "indexmap"]}
+orgize = { version = "0.9", optional = true, features = ["chrono", "indexmap"]}
 rand = "0.7.2"
 regex = {version = "1", optional = true}
 ropey = "1"
-chrono = { version = "0", optional = true }
+chrono = { version = "0.4", optional = true }
 
 [dev-dependencies]
-orgize = { version = "0", features = ["chrono", "indexmap"]}
-rand = "0"
+orgize = { version = "0.9", features = ["chrono", "indexmap"]}
+rand = "0.8"
 walkdir = "2"
 
 [[example]]
