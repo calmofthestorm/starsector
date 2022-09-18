@@ -15,6 +15,14 @@ macro_rules! common_rope_ext_trait {
         /// This searches *bytes*, not *chars*, and returns a byte index. Be very
         /// careful with Unicode.
         fn memchr(&self, needle: u8, offset: usize) -> usize;
+
+        /// Returns the byte index of the first character of this rope that
+        /// matches the pattern, or None if not found.
+        fn find(&self, needle: &str) -> Option<usize>;
+
+        /// Returns the byte index of the last character of this rope that
+        /// matches the pattern, or None if not found.
+        fn rfind(&self, needle: &str) -> Option<usize>;
     };
 }
 
@@ -105,6 +113,28 @@ macro_rules! common_rope_ext_impl {
             }
 
             bygones
+        }
+
+        fn find(&self, needle: &str) -> Option<usize> {
+            // FIXME: Implement more efficient behavior for multi-chunk ropes.
+            // We can copy chunks into a buffer and empty it as searched, but
+            // many edge cases depending on relative length of needle and
+            // chunks.
+            match self.slice(..).as_str() {
+                Some(s) => s.find(needle),
+                None => self.to_string().find(needle),
+            }
+        }
+
+        fn rfind(&self, needle: &str) -> Option<usize> {
+            // FIXME: Implement more efficient behavior for multi-chunk ropes.
+            // We can copy chunks into a buffer and empty it as searched, but
+            // many edge cases depending on relative length of needle and
+            // chunks.
+            match self.slice(..).as_str() {
+                Some(s) => s.rfind(needle),
+                None => self.to_string().rfind(needle),
+            }
         }
     };
 }
