@@ -1,8 +1,8 @@
 [package]
 name = "starsector"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Alex Roper <alex@aroper.net>"]
-edition = "2018"
+edition = "2021"
 description = "Org mode structural parser/emitter with an emphasis on modularity and avoiding edits unrelated to changes."
 license = "MIT"
 repository = "https://github.com/calmofthestorm/starsector"
@@ -19,25 +19,25 @@ headline-parser = ["regex", "lazy_static", "nom", "chrono"]
 orgize-integration = ["orgize", "headline-parser", "indexmap"]
 
 [dependencies]
-hex = "0"
-indexmap = { version = "1", optional = true}
-indextree = "4"
-iobuffer = "0"
-itertools = "0"
-lazy_static = { version = "1", optional = true}
-log = "0"
-memchr = "2"
-nom = { version = "5", optional = true }
-orgize = { version = "0", optional = true, features = ["chrono", "indexmap"]}
+chrono = { version = "0.4", optional = true }
+hex = "0.4"
+indexmap = { version = "1.9", optional = true}
+indextree = "4.5"
+iobuffer = "0.2"
+itertools = "0.10"
+lazy_static = { version = "1.4", optional = true}
+log = "0.4"
+memchr = "2.5"
+nom = { version = "7.1", optional = true }
+orgize = { version = "0.9", optional = true, features = ["chrono", "indexmap"]}
 rand = "0.7.2"
-regex = {version = "1", optional = true}
-ropey = "1"
-chrono = { version = "0", optional = true }
+regex = {version = "1.6", optional = true}
+ropey = "1.5"
 
 [dev-dependencies]
-orgize = { version = "0", features = ["chrono", "indexmap"]}
-rand = "0"
-walkdir = "2"
+orgize = { version = "0.9", features = ["chrono", "indexmap"]}
+rand = "0.7.2"
+walkdir = "2.3"
 
 [[example]]
 name = "deltatest"
