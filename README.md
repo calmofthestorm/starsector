@@ -206,7 +206,7 @@ fail.
 ## Properties Parser
 
 With `orgize-integration` feature flag (enabled by default), functions that get
-and properties (in the properties drawer) become available on both `Section` and
+and set properties (in the properties drawer) become available on both `Section` and
 `HeadlineBuilder`. These work similarly to the headline parser, except that they
 rely on [Orgize](https://github.com/PoiScript/orgize) to parse the headline.
 
