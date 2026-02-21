@@ -3,8 +3,8 @@ use std::convert::TryInto;
 use std::io::{Read, Result, Write};
 use std::path::PathBuf;
 use std::sync::{
-    mpsc::{Receiver, Sender},
     Arc, Mutex,
+    mpsc::{Receiver, Sender},
 };
 
 use itertools::Itertools;
@@ -20,7 +20,9 @@ fn usage(name: &str) -> Result<()> {
         "Verifies that Orgize and Starsector parse them consistently, modulo known differences."
     );
     // FIXME: actually do properties and planning
-    println!("Note that this is not an exhaustive check, and any errors on your org files may simply be known differences the logic here could not handle.");
+    println!(
+        "Note that this is not an exhaustive check, and any errors on your org files may simply be known differences the logic here could not handle."
+    );
     println!("Checks structure parsing, headline parsing, and properties/planning parsing.\n");
     println!(
         "usage: {} <path> [<path>...] [--fuzz=<iter,threads>] --mutate=<iter,threads>",
@@ -50,8 +52,8 @@ fn main() -> Result<()> {
     let mut fuzz = Vec::new();
     let mut mutate = Vec::new();
     for arg in &args[1..] {
-        if arg.starts_with("--mutate=") {
-            let nums: Vec<_> = arg[9..]
+        if let Some(stripped) = arg.strip_prefix("--mutate=") {
+            let nums: Vec<_> = stripped
                 .split(',')
                 .map(|n| n.parse::<usize>().unwrap_or(0))
                 .collect();
@@ -63,8 +65,8 @@ fn main() -> Result<()> {
             return Ok(());
         }
 
-        if arg.starts_with("--fuzz=") {
-            let nums: Vec<_> = arg[7..]
+        if let Some(stripped) = arg.strip_prefix("--fuzz=") {
+            let nums: Vec<_> = stripped
                 .split(',')
                 .map(|n| n.parse::<usize>().unwrap_or(0))
                 .collect();
@@ -76,7 +78,7 @@ fn main() -> Result<()> {
             return Ok(());
         }
 
-        for entry in walkdir::WalkDir::new(&arg).follow_links(true) {
+        for entry in walkdir::WalkDir::new(arg).follow_links(true) {
             let entry = match &entry {
                 Err(e) => {
                     println!("I/O error reading {:?}: {:?}\n", &entry, &e);
@@ -264,14 +266,14 @@ fn main() -> Result<()> {
                 std::thread::spawn(move || {
                     if i % 2 == 3 {
                         println!("[{}] Begin identity fuzz.", i);
-                        do_identity_fuzz(i, iter, &config, result.clone());
+                        do_identity_fuzz(i, iter, config, result.clone());
                         println!("[{}] Begin orgize fuzz.", i);
-                        do_orgize_fuzz(i, iter, &orgize_config, result.clone());
+                        do_orgize_fuzz(i, iter, orgize_config, result.clone());
                     } else {
                         println!("[{}] Begin orgize fuzz.", i);
-                        do_orgize_fuzz(i, iter, &orgize_config, result.clone());
+                        do_orgize_fuzz(i, iter, orgize_config, result.clone());
                         println!("[{}] Begin identity fuzz.", i);
-                        do_identity_fuzz(i, iter, &config, result.clone());
+                        do_identity_fuzz(i, iter, config, result.clone());
                     }
                     println!("[{}] End", i);
                 })
@@ -290,8 +292,6 @@ fn main() -> Result<()> {
         );
     }
 
-    if !fuzz.is_empty() {}
-
     Ok(())
 }
 
@@ -309,7 +309,7 @@ fn do_identity_fuzz(
         let mut violations = 0;
         let mut count = 1;
 
-        let level = starsector::util::lex_level(&node.text(&arena).slice(..));
+        let level = starsector::util::lex_level(&node.text(arena).slice(..));
         if let Some(headline) = node.headline(arena, None) {
             if headline.level() != level {
                 violations += 1;
@@ -317,13 +317,11 @@ fn do_identity_fuzz(
 
             // To check for crash.
             let _ = headline.to_rope();
-        } else {
-            if level != 0 {
-                violations += 1;
-            }
+        } else if level != 0 {
+            violations += 1;
         }
 
-        for child in node.children(&arena) {
+        for child in node.children(arena) {
             let (a, b) = recurse(child, arena);
             violations += a;
             count += b;
@@ -334,7 +332,7 @@ fn do_identity_fuzz(
 
     fn run(s: &str) -> (usize, usize) {
         let mut arena = Arena::default();
-        let doc = arena.parse_str(&s);
+        let doc = arena.parse_str(s);
         let out = doc.to_rope(&arena).to_string();
         if s != out {
             return (1, 1);
@@ -352,8 +350,8 @@ fn do_identity_fuzz(
         if violations > 0 {
             let mut rng = rand::thread_rng();
             let mut fd =
-                std::fs::File::create(&format!("violation.{}.org", &rng.next_u64())).unwrap();
-            fd.write_all(&s.as_bytes()).unwrap();
+                std::fs::File::create(format!("violation.{}.org", &rng.next_u64())).unwrap();
+            fd.write_all(s.as_bytes()).unwrap();
             fd.sync_all().unwrap();
             fd.sync_data().unwrap();
         }
@@ -449,8 +447,8 @@ fn do_orgize_fuzz(
 
         if violations > 0 {
             let mut fd =
-                std::fs::File::create(&format!("violation.{}.org", &rng.next_u64())).unwrap();
-            fd.write_all(&s.as_bytes()).unwrap();
+                std::fs::File::create(format!("violation.{}.org", &rng.next_u64())).unwrap();
+            fd.write_all(s.as_bytes()).unwrap();
         }
     }
 }
@@ -469,8 +467,10 @@ fn generator(config: &'static FuzzConfig, sender: Sender<String>, receiver: Rece
     loop {
         let (a, b) = std::sync::mpsc::channel();
         let (c, d) = std::sync::mpsc::channel();
-        let t = std::thread::spawn(move || loop {
-            a.send(_generate(config, d.recv().unwrap())).unwrap();
+        let t = std::thread::spawn(move || {
+            loop {
+                a.send(_generate(config, d.recv().unwrap())).unwrap();
+            }
         });
 
         loop {
@@ -479,11 +479,11 @@ fn generator(config: &'static FuzzConfig, sender: Sender<String>, receiver: Rece
                 sender.send(String::default()).unwrap();
             }
             let s = receiver.recv().unwrap();
-            if !c.send(s).is_err() {
-                if let Ok(s) = b.recv() {
-                    sender.send(s).unwrap();
-                    continue;
-                }
+            if c.send(s).is_ok()
+                && let Ok(s) = b.recv()
+            {
+                sender.send(s).unwrap();
+                continue;
             }
             break;
         }
@@ -509,7 +509,7 @@ fn _generate(config: &FuzzConfig, mut s: String) -> String {
             let mut source = config
                 .files
                 .values()
-                .nth(rng.gen_range(0, config.files.len()))
+                .nth(rng.gen_range(0..config.files.len()))
                 .unwrap()
                 .as_str();
             let mut count = source.char_indices().count();
@@ -540,9 +540,9 @@ fn _generate(config: &FuzzConfig, mut s: String) -> String {
 
     if !chunks.is_empty() {
         s.clear();
-        for (_, chunk) in chunks.iter().enumerate() {
+        for chunk in &chunks {
             for _ in 0..10 {
-                let choice = rng.gen_range(0, 50);
+                let choice = rng.gen_range(0..50);
                 if choice <= 5 {
                     append_random_string(config, &mut s, rng.next_u32() as usize % 75);
                 } else if choice <= 10 {
@@ -567,7 +567,7 @@ fn _generate(config: &FuzzConfig, mut s: String) -> String {
                     break;
                 } else if choice <= 25 {
                     s += "* Hello\n";
-                    s += &chunk;
+                    s += chunk;
                     s += "* World\n";
                     break;
                 } else if choice <= 30 {
@@ -598,18 +598,18 @@ fn _generate(config: &FuzzConfig, mut s: String) -> String {
                     break;
                 } else if choice < 40 {
                     let mut thing = gen_planning();
-                    if rng.gen_range(0, 10) == 2 {
+                    if rng.gen_range(0..10) == 2 {
                         thing = format!("Hello\n{}", &thing);
                     }
                     appendify(&mut s, &thing);
                 } else if choice < 43 {
                     let mut thing = gen_properties();
-                    if rng.gen_range(0, 10) == 2 {
+                    if rng.gen_range(0..10) == 2 {
                         thing = format!("Hello\n{}", &thing);
                     }
                     appendify(&mut s, &thing);
                 } else if choice < 46 {
-                    let r = rng.gen_range(0, 13);
+                    let r = rng.gen_range(0..13);
                     let stuff = if r == 1 {
                         format!("{}{}", gen_planning(), gen_properties())
                     } else if r == 2 {
@@ -624,7 +624,7 @@ fn _generate(config: &FuzzConfig, mut s: String) -> String {
 
                     appendify(&mut s, &stuff);
                 } else {
-                    s += &chunk;
+                    s += chunk;
                     break;
                 }
             }
@@ -654,7 +654,7 @@ fn _generate(config: &FuzzConfig, mut s: String) -> String {
 
 fn appendify(s: &mut String, thing: &str) {
     let mut rng = rand::thread_rng();
-    let r = rng.gen_range(0, 10);
+    let r = rng.gen_range(0..10);
     if r == 1 {
         *s += thing;
     } else if r == 2 {
@@ -674,22 +674,22 @@ fn gen_properties() -> String {
     let mut rng = rand::thread_rng();
     let mut properties = "  :PROPERTIES:\n".to_string();
 
-    for _ in 0..rng.gen_range(0, 10) {
-        let mut name: String = rng
+    for _ in 0..rng.gen_range(0..10) {
+        let mut name: String = rand::thread_rng()
             .sample_iter::<char, _>(rand::distributions::Standard)
-            .take(rng.gen_range(1, 5))
+            .take(rng.gen_range(1..5))
             .filter(|c| *c != '+' && !c.is_whitespace())
             .collect();
         if name.is_empty() {
             continue;
         }
-        if rng.gen_range(0, 5) == 2 {
+        if rng.gen_range(0..5) == 2 {
             name.push('+');
         }
 
-        let value: String = rng
+        let value: String = rand::thread_rng()
             .sample_iter::<char, _>(rand::distributions::Standard)
-            .take(rng.gen_range(0, 50))
+            .take(rng.gen_range(0..50))
             .filter(|c| *c != '\n')
             .collect();
 
@@ -704,8 +704,8 @@ fn gen_properties() -> String {
 fn gen_planning() -> String {
     let mut rng = rand::thread_rng();
     let mut planning = String::new();
-    for _ in 0..rng.gen_range(0, 5) {
-        let r = rng.gen_range(0, 3);
+    for _ in 0..rng.gen_range(0..5) {
+        let r = rng.gen_range(0..3);
         if r == 0 {
             planning += "DEADLINE";
         } else if r == 1 {
@@ -713,14 +713,14 @@ fn gen_planning() -> String {
         } else {
             planning += "CLOSED";
         }
-        if rng.gen_range(0, 20) == 7 {
+        if rng.gen_range(0..20) == 7 {
             planning += "FROBBLE";
         }
-        if rng.gen_range(0, 7) != 1 {
+        if rng.gen_range(0..7) != 1 {
             planning += ": ";
         }
-        if rng.gen_range(0, 7) != 1 {
-            let r = rng.gen_range(0, 5);
+        if rng.gen_range(0..7) != 1 {
+            let r = rng.gen_range(0..5);
             if r == 0 {
                 planning += "<2019-02-04>";
             } else if r == 1 {
@@ -733,7 +733,7 @@ fn gen_planning() -> String {
                 planning += "<2019-02-04 Sun -1w>";
             }
         }
-        if rng.gen_range(0, 10) != 1 {
+        if rng.gen_range(0..10) != 1 {
             planning += " ";
         }
     }
@@ -746,7 +746,7 @@ fn append_random_string(config: &FuzzConfig, s: &mut String, length: usize) {
     let goal = s.len() + length;
     while s.len() < goal {
         let r = rng.next_u32() % 12;
-        if r % 5 == 0 {
+        if r.is_multiple_of(5) {
             let mut count = rng.next_u32() % 10 + 1;
             if count > 5 {
                 count = 1;
@@ -803,7 +803,7 @@ fn append_random_string(config: &FuzzConfig, s: &mut String, length: usize) {
                             .unwrap(),
                     );
                 }
-                if rng.next_u32() % 4 == 0 {
+                if rng.next_u32().is_multiple_of(4) {
                     s.push('\t');
                 } else {
                     s.push(' ');
@@ -815,7 +815,7 @@ fn append_random_string(config: &FuzzConfig, s: &mut String, length: usize) {
                 count = 0;
             }
             for _ in 0..count {
-                let corpus = if !config.words.is_empty() && rng.next_u32() % 4 == 0 {
+                let corpus = if !config.words.is_empty() && rng.next_u32().is_multiple_of(4) {
                     &config.words
                 } else {
                     &config.keywords
@@ -837,11 +837,11 @@ struct FuzzConfig {
     keywords: Vec<String>,
 }
 
-fn parse_compare_node<'a>(ours: &Section, arena: &Arena) -> (usize, usize) {
+fn parse_compare_node(ours: &Section, arena: &Arena) -> (usize, usize) {
     let mut count = 1;
     let mut violations = 0;
 
-    let text = ours.text(&arena);
+    let text = ours.text(arena);
     let headline_text = text.lines().next().map(Rope::from).unwrap_or_default();
     let org = orgize::Org::parse_string(text.to_string());
 
@@ -849,12 +849,7 @@ fn parse_compare_node<'a>(ours: &Section, arena: &Arena) -> (usize, usize) {
     let mut orgize_defined_bonus_headlines = 0;
 
     let text = text.to_contiguous();
-    let lines = if text.ends_with('\n') {
-        &text[..text.len() - 1]
-    } else {
-        &text
-    }
-    .split('\n');
+    let lines = text.strip_suffix('\n').unwrap_or(&text).split('\n');
 
     for line in lines.skip(1) {
         let mut level = 0;
@@ -904,8 +899,8 @@ fn parse_compare_node<'a>(ours: &Section, arena: &Arena) -> (usize, usize) {
         }
     }
 
-    for child in ours.children(&arena) {
-        let (a, b) = parse_compare_node(&child, &arena);
+    for child in ours.children(arena) {
+        let (a, b) = parse_compare_node(&child, arena);
         violations += a;
         count += b;
     }
@@ -1048,25 +1043,25 @@ fn parse_compare_headline<'a>(
         return 1;
     }
 
-    return 0;
+    0
 }
 
 fn strip_trailing_empty_tags(text: &mut &str) {
     // org-element and org-mode don't respect Unicode whitespace here.
-    if let Some(final_word) = text.split_ascii_whitespace().last() {
-        if final_word.len() >= 2 {
-            // E.g, "* Hello ::"
-            // org-element and Orgize treat this as part of the title.
-            let mut found = false;
-            for c in final_word.chars() {
-                if c != ':' {
-                    found = true;
-                    break;
-                }
+    if let Some(final_word) = text.split_ascii_whitespace().last()
+        && final_word.len() >= 2
+    {
+        // E.g, "* Hello ::"
+        // org-element and Orgize treat this as part of the title.
+        let mut found = false;
+        for c in final_word.chars() {
+            if c != ':' {
+                found = true;
+                break;
             }
-            if !found {
-                *text = &text[..text.len() - final_word.len()].trim_end();
-            }
+        }
+        if !found {
+            *text = text[..text.len() - final_word.len()].trim_end();
         }
     }
 }
@@ -1089,7 +1084,7 @@ fn structure_compare_headline<'a>(
                     .unwrap()
                     .is_ascii_whitespace()
         {
-            text = &text[keyword.len()..].trim();
+            text = text[keyword.len()..].trim();
         } else {
             println!("Headline {:?} keyword mismatch", headline,);
             return 1;
@@ -1104,10 +1099,10 @@ fn structure_compare_headline<'a>(
     if let Some(priority) = other.priority {
         if text.starts_with(&format!("[#{}]", priority)) {
             // I am no longer interested in this case.
-            if let Some(c) = text.chars().nth(4) {
-                if !c.is_ascii_whitespace() {
-                    return 0;
-                }
+            if let Some(c) = text.chars().nth(4)
+                && !c.is_ascii_whitespace()
+            {
+                return 0;
             }
         } else {
             println!(
@@ -1125,7 +1120,7 @@ fn structure_compare_headline<'a>(
         return 1;
     }
 
-    return 0;
+    0
 }
 
 // FIXME This only compares bodys, and skips sections (including
@@ -1139,8 +1134,8 @@ fn structure_compare_node(
     let mut violations = 0;
     let mut count = 1;
 
-    let level = ours.level(&arena) as usize;
-    let text = ours.text(&arena);
+    let level = ours.level(arena) as usize;
+    let text = ours.text(arena);
     if level != theirs.level() {
         println!(
             "Headline {:?} level differs: {} vs {}. Not recursing into it.",
@@ -1151,17 +1146,12 @@ fn structure_compare_node(
         return (1, 1);
     }
 
-    let our_cc = ours.children(&arena).count();
-    let their_cc = theirs.children(&org).count();
+    let our_cc = ours.children(arena).count();
+    let their_cc = theirs.children(org).count();
     if our_cc != their_cc {
         // Orgize defines headlines oddly.
-        let lines = &*text.to_contiguous();
-        let lines = if lines.ends_with('\n') {
-            &lines[..lines.len() - 1]
-        } else {
-            lines
-        }
-        .split('\n');
+        let lines = text.to_contiguous();
+        let lines = lines.strip_suffix('\n').unwrap_or(&lines).split('\n');
 
         for line in lines.skip(1) {
             let mut level = 0;
@@ -1189,13 +1179,13 @@ fn structure_compare_node(
         return (1, 1);
     }
 
-    let other = theirs.title(&org);
+    let other = theirs.title(org);
 
     // FIXME: Compare root text
     if level > 0 {
         violations += structure_compare_headline(
             level,
-            &*text
+            &text
                 .lines()
                 .next()
                 .map(|s| s.to_string())
@@ -1204,13 +1194,13 @@ fn structure_compare_node(
         );
     }
 
-    for (ours, theirs) in ours.children(&arena).zip(theirs.children(&org)) {
-        let (a, b) = structure_compare_node(&ours, &theirs, &org, &arena);
+    for (ours, theirs) in ours.children(arena).zip(theirs.children(org)) {
+        let (a, b) = structure_compare_node(&ours, &theirs, org, arena);
         violations += a;
         count += b;
     }
 
-    return (violations, count);
+    (violations, count)
 }
 
 fn verify_structure(text: &str, r: &regex::Regex) -> (usize, usize) {
@@ -1227,13 +1217,13 @@ fn verify_structure(text: &str, r: &regex::Regex) -> (usize, usize) {
 
     // Verify tree structure.
     let mut arena = Arena::default();
-    let doc = arena.parse_str(&text);
+    let doc = arena.parse_str(text);
 
-    let org = orgize::Org::parse(&text);
+    let org = orgize::Org::parse(text);
     if !org.validate().is_empty() {
         let mut rng = rand::thread_rng();
-        let mut fd = std::fs::File::create(&format!("violation.{}.org", &rng.next_u64())).unwrap();
-        fd.write_all(&text.as_bytes()).unwrap();
+        let mut fd = std::fs::File::create(format!("violation.{}.org", &rng.next_u64())).unwrap();
+        fd.write_all(text.as_bytes()).unwrap();
         fd.sync_all().unwrap();
         fd.sync_data().unwrap();
         return (1, 1);
@@ -1256,7 +1246,7 @@ fn verify_headline_parser(text: &str) -> (usize, usize) {
 
     // Verify tree structure.
     let mut arena = Arena::default();
-    let doc = arena.parse_str(&text);
+    let doc = arena.parse_str(text);
 
     let mut violations = 0;
     let mut count = 0;

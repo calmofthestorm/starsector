@@ -28,7 +28,7 @@ pub fn headline_level(input: &RopeSlice, offset: usize) -> u16 {
 }
 
 pub fn headline_level_str(input: &str, offset: usize) -> u16 {
-    for (i, c) in input[offset..].as_bytes().iter().enumerate() {
+    for (i, c) in input.as_bytes()[offset..].iter().enumerate() {
         match c {
             b'*' => {}
             b' ' if i > 0 => return i as u16,
@@ -48,6 +48,7 @@ pub fn line<'a>(input: &'a RopeSlice<'a>) -> (RopeSlice<'a>, RopeSlice<'a>) {
 
 // Returns a pair of the current line and the rest of the string, consuming the
 // newline that terminates the current line if present.
+#[cfg(any(feature = "headline-parser", test))]
 pub fn consuming_line<'a>(input: &'a RopeSlice<'a>) -> (RopeSlice<'a>, RopeSlice<'a>) {
     let split = next_line(input, 0);
     let line = input.slice_bytes(..split);
@@ -122,17 +123,17 @@ pub(crate) fn parse_document(arena: &mut Arena, input: &RopeSlice) -> Document {
     assert_eq!(input.len_bytes(), offset);
 
     // #[cfg(debug_assertions)]
-    let re = regex::Regex::new("(^|.*\n)\\*\\** .*").expect("failed to assemble headline regex");
+    fn checker(node: Section, arena: &Arena, _input: &RopeSlice) {
+        fn has_headline_line(input: &str) -> bool {
+            input.lines().any(|line| headline_level_str(line, 0) > 0)
+        }
 
-    // #[cfg(debug_assertions)]
-    fn checker(re: &regex::Regex, node: Section, arena: &Arena, input: &RopeSlice) {
-        let level = node.level(&arena);
-        let text = node.text(&arena);
+        let level = node.level(arena);
+        let text = node.text(arena);
         let lexed_level = lex_level(&text.slice(..));
-        if lexed_level != level
-            || text.len_bytes() >= level as usize
-                && re.is_match(&text.to_contiguous()[(level as usize)..])
-        {
+        let contains_headline_after_prefix = text.len_bytes() >= level as usize
+            && has_headline_line(&text.to_contiguous()[(level as usize)..]);
+        if lexed_level != level || contains_headline_after_prefix {
             // use std::io::Write;
             // let mut ff = std::fs::File::create("/tmp/lll.org").unwrap();
             // ff.write_all(input).unwrap();
@@ -140,13 +141,13 @@ pub(crate) fn parse_document(arena: &mut Arena, input: &RopeSlice) -> Document {
             panic!("Check failed");
         }
         assert_eq!(lexed_level, level);
-        for node in node.children(&arena) {
-            checker(re, node, arena, input);
+        for node in node.children(arena) {
+            checker(node, arena, _input);
         }
     }
 
     // #[cfg(debug_assertions)]
-    checker(&re, Section { id: root_id }, &arena, input);
+    checker(Section { id: root_id }, arena, input);
 
     Document {
         root: Section { id: root_id },

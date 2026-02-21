@@ -1,6 +1,6 @@
 use ropey::{Rope, RopeSlice};
 
-use crate::{parser::structure::parse_document, Document, RopeExt, Section};
+use crate::{Document, RopeExt, Section, parser::structure::parse_document};
 
 #[derive(Default, Debug)]
 pub struct Arena {
@@ -67,6 +67,7 @@ impl Arena {
         Section { id }
     }
 
+    #[cfg(feature = "headline-parser")]
     pub(crate) fn set_level(&mut self, new_child: Section, level: u16) {
         let data = self.arena[new_child.id].get();
         if data.level > level {
@@ -76,6 +77,7 @@ impl Arena {
         }
     }
 
+    #[cfg(feature = "headline-parser")]
     pub(crate) fn section_max_level(&mut self, new_child: Section, max_level: u16) {
         let data = self.arena[new_child.id].get();
         let level = data.level;
@@ -108,7 +110,7 @@ impl Arena {
 
         let mut text = String::default();
         text.reserve(change + text_len + if level == 0 { 1 } else { 0 });
-        text.extend(std::iter::repeat('*').take(change));
+        text.extend(std::iter::repeat_n('*', change));
         if level == 0 {
             text.push(' ');
         }

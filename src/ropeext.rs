@@ -8,7 +8,7 @@ macro_rules! common_rope_ext_trait {
         fn to_contiguous<'a>(&'a self) -> Cow<'a, str>;
         fn discontangle<'a, 'b>(&'a self, contiguous: &'b str, s: &'b str) -> RopeSlice<'a>;
         fn is_empty(&self) -> bool;
-        fn slice_bytes<R>(&self, byte_range: R) -> RopeSlice
+        fn slice_bytes<R>(&self, byte_range: R) -> RopeSlice<'_>
         where
             R: RangeBounds<usize>;
 
@@ -64,7 +64,7 @@ macro_rules! common_rope_ext_impl {
             return self.len_bytes() == 0;
         }
 
-        fn slice_bytes<R>(&self, byte_range: R) -> RopeSlice
+        fn slice_bytes<R>(&self, byte_range: R) -> RopeSlice<'_>
         where
             R: RangeBounds<usize>,
         {

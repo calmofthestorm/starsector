@@ -1,11 +1,11 @@
 use nom::{
+    Err, IResult,
     bytes::complete::{tag, take_till, take_while},
     character::complete::{char, one_of, space0},
     combinator::verify,
-    error::{make_error, ErrorKind},
+    error::{ErrorKind, make_error},
     multi::many0,
     sequence::{delimited, pair, preceded, separated_pair, terminated},
-    Err, IResult,
 };
 use ropey::{Rope, RopeSlice};
 
@@ -21,7 +21,10 @@ lazy_static! {
 // space ' '. Don't match the space.
 fn parse_level(input: &str) -> IResult<&str, u16, ()> {
     match crate::util::lex_level_str(input) {
-        0 => Err(Err::Error(make_error(input, ErrorKind::Tag))),
+        0 => Err({
+            let _: () = make_error(input, ErrorKind::Tag);
+            Err::Error(())
+        }),
         level => Ok((&input[level as usize..], level)),
     }
 }
@@ -86,7 +89,7 @@ fn parse_planning_keyword(input: &str) -> IResult<&str, PlanningKeyword, ()> {
     } else if input.starts_with("CLOSED:") {
         Ok((&input[6..], PlanningKeyword::Closed))
     } else {
-        return Err(nom::Err::Error(()));
+        Err(nom::Err::Error(()))
     }
 }
 
@@ -106,7 +109,7 @@ fn parse_info_pattern(input: &str) -> IResult<&str, InfoPattern, ()> {
 }
 
 // Matches a single line that is the planning line.
-fn parse_planning_line(input: &str) -> Option<Planning> {
+fn parse_planning_line(input: &str) -> Option<Planning<'_>> {
     match preceded(space0, many0(terminated(parse_info_pattern, space0)))(input) {
         // A planning line needs to have at least one info pattern to be
         // considered a planning line rather than part of the body.
@@ -197,8 +200,10 @@ pub(crate) fn parse_headline(input: RopeSlice, context: &Context) -> Option<Head
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "orgize-integration")]
     use std::convert::TryInto;
 
+    #[cfg(feature = "orgize-integration")]
     use crate::{Activity, Interval, Point, Repeater, RepeaterMark, Time, TimeUnit, TimestampExt};
 
     use super::*;
@@ -275,6 +280,7 @@ mod tests {
     // A regression test for one of my files. Orgize can't handle timestamps
     // that are missing the day of week (it can be invalid or wrong, but must be
     // there), but I have a lot of them.
+    #[cfg(feature = "orgize-integration")]
     #[test]
     fn test_day_of_week_is_optional() {
         const TEXT: &str = r#"* DONE Send a card for her retirement
@@ -317,6 +323,7 @@ mod tests {
 
     // A regression test for one of my files. Ensure we permit timestamps to contain
     // Org Habit annotations even if we aren't parsing them.
+    #[cfg(feature = "orgize-integration")]
     #[test]
     fn test_org_habit_annotations_allowed() {
         const TEXT: &str = r#"*** TODO Test UPS

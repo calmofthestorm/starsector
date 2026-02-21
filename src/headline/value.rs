@@ -1,3 +1,4 @@
+#[cfg(feature = "orgize-integration")]
 use std::borrow::Cow;
 
 use ropey::Rope;
@@ -58,7 +59,7 @@ impl Headline {
         &self.0.raw_tags_rope
     }
 
-    pub fn tags(&self) -> Tags {
+    pub fn tags(&self) -> Tags<'_> {
         if self.0.raw_tags_string.is_empty() {
             Tags { split: None }
         } else {
@@ -83,7 +84,7 @@ impl Headline {
     }
 
     // A missing planning line is denoted as having the default value.
-    pub fn planning(&self) -> &Planning {
+    pub fn planning(&self) -> &Planning<'_> {
         &self.0.planning
     }
 
@@ -128,7 +129,7 @@ impl Headline {
 
     #[cfg(feature = "orgize-integration")]
     pub fn get_property(&self, property: &str) -> Result<Option<Rope>, HeadlineError> {
-        let org = parse_orgize(&self.body());
+        let org = parse_orgize(self.body());
         let p = org.headlines().next().and_then(|headline| {
             let pairs = &headline.title(&org).properties.pairs;
             match pairs.binary_search_by(|(k, _)| k.as_ref().cmp(property)) {

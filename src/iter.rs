@@ -28,7 +28,7 @@ impl<'a> Iterator for PrecedingSiblings<'a> {
 }
 
 pub struct ReverseChildren<'a> {
-    pub(crate) reverse_children: indextree::ReverseChildren<'a, SectionData>,
+    pub(crate) reverse_children: std::iter::Rev<indextree::Children<'a, SectionData>>,
 }
 
 impl<'a> Iterator for ReverseChildren<'a> {

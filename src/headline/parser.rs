@@ -29,10 +29,6 @@ impl Default for Context<'static> {
 }
 
 impl Context<'_> {
-    pub fn default() -> Context<'static> {
-        Context::new("TODO:DONE".into())
-    }
-
     pub fn new<'a>(keywords: Cow<'a, str>) -> Context<'a> {
         Context { keywords }
     }
@@ -53,9 +49,9 @@ pub(crate) fn context_or<'a, 'b>(context: Option<&'b Context<'a>>) -> &'b Contex
 
 impl Section {
     pub fn headline(self, arena: &Arena, context: Option<&Context>) -> Option<Headline> {
-        if self.level(&arena) > 0 {
+        if self.level(arena) > 0 {
             Some(parse_valid_single_headline(
-                self.text(&arena).slice(..),
+                self.text(arena).slice(..),
                 context_or(context),
             ))
         } else {
@@ -83,7 +79,7 @@ impl Section {
                 Err(HeadlineError::InvalidBodyError)
             }
             Some(section) => {
-                if self.level_change_ok(arena, section.level(&arena)) {
+                if self.level_change_ok(arena, section.level(arena)) {
                     // FIXME: Refactor
                     *arena.arena[self.id].get_mut() =
                         std::mem::take(arena.arena[section.id].get_mut());
@@ -109,12 +105,12 @@ impl Section {
             return false;
         }
 
-        if let Some(parent) = self.parent(arena) {
-            if parent.level(arena) >= level {
-                // FIXME: Better errors; need to handle both structure and
-                // headline. Or unify or something.
-                return false;
-            }
+        if let Some(parent) = self.parent(arena)
+            && parent.level(arena) >= level
+        {
+            // FIXME: Better errors; need to handle both structure and
+            // headline. Or unify or something.
+            return false;
         }
 
         for child in self.children(arena) {
@@ -139,10 +135,10 @@ impl HeadlineBuilder {
             return Err(HeadlineError::InvalidLevelError);
         };
 
-        if let Some(c) = self.0.priority {
-            if !c.is_ascii_uppercase() {
-                return Err(HeadlineError::InvalidPriorityError);
-            }
+        if let Some(c) = self.0.priority
+            && !c.is_ascii_uppercase()
+        {
+            return Err(HeadlineError::InvalidPriorityError);
         }
 
         if !self.0.raw_tags_string.is_empty()
@@ -151,13 +147,13 @@ impl HeadlineBuilder {
             return Err(HeadlineError::InvalidTagsError);
         }
 
-        if let Some(keyword) = &self.0.keyword {
-            if !context.keywords.split(':').any(|k| k == keyword) {
-                return Err(HeadlineError::InvalidKeywordError);
-            }
+        if let Some(keyword) = &self.0.keyword
+            && !context.keywords.split(':').any(|k| k == keyword)
+        {
+            return Err(HeadlineError::InvalidKeywordError);
         }
 
-        if CONTAINS_HEADLINE_RE.is_match(&*self.0.body.to_contiguous()) {
+        if CONTAINS_HEADLINE_RE.is_match(&self.0.body.to_contiguous()) {
             return Err(HeadlineError::InvalidBodyError);
         }
 

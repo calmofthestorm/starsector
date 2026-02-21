@@ -17,28 +17,27 @@ pub(crate) fn has_property_internal(
     Ok(title
         .properties
         .pairs
-        .binary_search_by(|(k, _)| k.as_ref().cmp(property))
-        .is_ok())
+        .iter()
+        .any(|(k, _)| k.as_ref() == property))
 }
 
-// ELDRITCH: binary search, but is it sorted?
 pub(crate) fn get_property_internal(
     property: &'_ str,
     org: &orgize::Org,
 ) -> Result<Option<Cow<'static, str>>, HeadlineError> {
     let title = get_title_internal(org)?;
-    let pairs = &title.properties.pairs;
-    let p = match pairs.binary_search_by(|(k, _)| k.as_ref().cmp(property)) {
-        Ok(p_index) => Some(pairs[p_index].1.to_string().into()),
-        _ => None,
-    };
+    let p = title
+        .properties
+        .pairs
+        .iter()
+        .find_map(|(k, v)| (k.as_ref() == property).then(|| Cow::Owned(v.to_string())));
     Ok(p)
 }
 
 pub(crate) fn get_id_internal(
     org: &orgize::Org,
 ) -> Result<Option<Cow<'static, str>>, HeadlineError> {
-    get_property_internal("ID".into(), org).map(|p| p.map(Into::into))
+    get_property_internal("ID", org)
 }
 
 pub(crate) fn properties_internal(
@@ -58,11 +57,8 @@ pub fn clear_property_internal(
 ) -> Result<(), crate::errors::HeadlineError> {
     let t = &mut get_title_mut_internal(org)?;
     let pairs = &mut t.properties.pairs;
-    match pairs.binary_search_by(|(k, _)| k.as_ref().cmp(key)) {
-        Ok(id_index) => {
-            pairs.remove(id_index);
-        }
-        _ => {}
+    if let Some(id_index) = pairs.iter().position(|(k, _)| k.as_ref() == key) {
+        pairs.remove(id_index);
     }
     Ok(())
 }
@@ -74,21 +70,17 @@ pub fn set_property_internal(
 ) -> Result<(), crate::errors::HeadlineError> {
     let t = &mut get_title_mut_internal(org)?;
     let pairs = &mut t.properties.pairs;
-    match pairs.binary_search_by(|(k, _)| k.as_ref().cmp(key)) {
-        Ok(id_index) => {
-            match pairs[id_index].1 {
-                Cow::Borrowed(..) => {
-                    pairs[id_index].1 = value.to_string().into();
-                }
-                Cow::Owned(..) => {
-                    pairs[id_index].1.to_mut().replace_range(.., value);
-                }
-            };
-        }
-        _ => {
-            pairs.push((key.to_string().into(), value.to_string().into()));
-        }
-    }
+    match pairs.iter().position(|(k, _)| k.as_ref() == key) {
+        Some(id_index) => match pairs[id_index].1 {
+            Cow::Borrowed(..) => {
+                pairs[id_index].1 = value.to_string().into();
+            }
+            Cow::Owned(..) => {
+                pairs[id_index].1.to_mut().replace_range(.., value);
+            }
+        },
+        None => pairs.push((key.to_string().into(), value.to_string().into())),
+    };
     Ok(())
 }
 
@@ -97,10 +89,7 @@ pub fn set_properties_internal(
     properties: indexmap::IndexMap<Cow<'static, str>, Cow<'static, str>>,
 ) -> Result<(), crate::errors::HeadlineError> {
     let t = &mut get_title_mut_internal(org)?;
-    t.properties = properties
-        .into_iter()
-        .map(|(k, v)| (k.into(), v.into()))
-        .collect();
+    t.properties = properties.into_iter().collect();
 
     Ok(())
 }
@@ -109,12 +98,12 @@ pub fn generate_id_internal(
     org: &mut orgize::Org,
 ) -> Result<Cow<'static, str>, crate::errors::HeadlineError> {
     if let Some(id) = get_property_internal("ID", org)? {
-        return Ok(id.to_owned());
+        return Ok(id.clone());
     }
 
     let mut bytes = [0; 16];
     rand::thread_rng().fill_bytes(&mut bytes);
-    let bytes = hex::encode(&bytes);
+    let bytes = hex::encode(bytes);
     let bytes = format!(
         "{}-{}-{}-{}-{}",
         &bytes[..8],

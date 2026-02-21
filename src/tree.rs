@@ -1,3 +1,4 @@
+#[cfg(feature = "headline-parser")]
 use std::borrow::Cow;
 
 use indextree::NodeId;
@@ -124,11 +125,9 @@ impl Section {
         for (j, child_id) in self.id.children(&arena.arena).enumerate() {
             trace!(
                 "at: in child {} (id {}) of node id {}",
-                j,
-                child_id,
-                self.id
+                j, child_id, self.id
             );
-            let k = Section { id: child_id }.to_rope(&arena).len_chars();
+            let k = Section { id: child_id }.to_rope(arena).len_chars();
             if pos < k {
                 let s = Section { id: child_id };
                 return match s.at(arena, pos) {
@@ -206,39 +205,39 @@ impl Section {
         arena.arena[self.id].parent().map(|p| Section { id: p })
     }
 
-    pub fn children(self, arena: &Arena) -> Children {
+    pub fn children(self, arena: &Arena) -> Children<'_> {
         Children {
             children: self.id.children(&arena.arena),
         }
     }
 
-    pub fn ancestors(self, arena: &Arena) -> Ancestors {
+    pub fn ancestors(self, arena: &Arena) -> Ancestors<'_> {
         Ancestors {
             ancestors: self.id.ancestors(&arena.arena),
         }
     }
 
-    pub fn descendants(self, arena: &Arena) -> Descendants {
+    pub fn descendants(self, arena: &Arena) -> Descendants<'_> {
         Descendants {
             descendants: self.id.descendants(&arena.arena),
         }
     }
 
-    pub fn preceding_siblings(self, arena: &Arena) -> PrecedingSiblings {
+    pub fn preceding_siblings(self, arena: &Arena) -> PrecedingSiblings<'_> {
         PrecedingSiblings {
             preceding_siblings: self.id.preceding_siblings(&arena.arena),
         }
     }
 
-    pub fn following_siblings(self, arena: &Arena) -> FollowingSiblings {
+    pub fn following_siblings(self, arena: &Arena) -> FollowingSiblings<'_> {
         FollowingSiblings {
             following_siblings: self.id.following_siblings(&arena.arena),
         }
     }
 
-    pub fn reverse_children(self, arena: &Arena) -> ReverseChildren {
+    pub fn reverse_children(self, arena: &Arena) -> ReverseChildren<'_> {
         ReverseChildren {
-            reverse_children: self.id.reverse_children(&arena.arena),
+            reverse_children: self.id.children(&arena.arena).rev(),
         }
     }
 }
@@ -312,7 +311,7 @@ impl Section {
         new_child: Section,
     ) -> Result<(), StructureError> {
         if arena.arena[new_child.id].get().level <= arena.arena[self.id].get().level {
-            return Err(StructureError::LevelError);
+            Err(StructureError::LevelError)
         } else {
             Ok(self.id.checked_append(new_child.id, &mut arena.arena)?)
         }
@@ -327,7 +326,7 @@ impl Section {
         new_child: Section,
     ) -> Result<(), StructureError> {
         if arena.arena[new_child.id].get().level <= arena.arena[self.id].get().level {
-            return Err(StructureError::LevelError);
+            Err(StructureError::LevelError)
         } else {
             Ok(self.id.checked_prepend(new_child.id, &mut arena.arena)?)
         }
@@ -341,10 +340,10 @@ impl Section {
         arena: &mut Arena,
         new_sibling: Section,
     ) -> Result<(), StructureError> {
-        if let Some(parent) = arena.arena[self.id].parent() {
-            if arena.arena[new_sibling.id].get().level <= arena.arena[parent].get().level {
-                return Err(StructureError::LevelError);
-            }
+        if let Some(parent) = arena.arena[self.id].parent()
+            && arena.arena[new_sibling.id].get().level <= arena.arena[parent].get().level
+        {
+            return Err(StructureError::LevelError);
         }
 
         Ok(self
@@ -360,10 +359,10 @@ impl Section {
         arena: &mut Arena,
         new_sibling: Section,
     ) -> Result<(), StructureError> {
-        if let Some(parent) = arena.arena[self.id].parent() {
-            if arena.arena[new_sibling.id].get().level <= arena.arena[parent].get().level {
-                return Err(StructureError::LevelError);
-            }
+        if let Some(parent) = arena.arena[self.id].parent()
+            && arena.arena[new_sibling.id].get().level <= arena.arena[parent].get().level
+        {
+            return Err(StructureError::LevelError);
         }
 
         Ok(self
@@ -454,9 +453,9 @@ impl Section {
         }
     }
 
-    pub fn tags<'a>(
+    pub fn tags(
         self,
-        arena: &'a Arena,
+        arena: &Arena,
         context: Option<&Context>,
     ) -> Result<Vec<String>, HeadlineError> {
         match self.headline(arena, context) {
@@ -604,10 +603,10 @@ impl Section {
         &self,
         arena: &Arena,
         context: Option<&Context>,
-    ) -> Result<orgize::Org, HeadlineError> {
+    ) -> Result<orgize::Org<'_>, HeadlineError> {
         match self.headline(arena, context) {
             None => Err(HeadlineError::InvalidHeadlineError),
-            Some(h) => Ok(parse_orgize(&h.body())),
+            Some(h) => Ok(parse_orgize(h.body())),
         }
     }
 }
@@ -647,7 +646,7 @@ impl Section {
             Some(h) => {
                 let mut h = h.to_builder();
                 // FIXME: Figure out lifetime.
-                h.set_tags(tags.map(|s| s.to_owned()));
+                h.set_tags(tags.map(|s| Cow::Owned(s.into_owned())));
                 self.set_headline(arena, &h.headline(context)?)
             }
         }
@@ -667,7 +666,7 @@ impl Section {
             Some(h) => {
                 let mut h = h.to_builder();
                 // FIXME: Figure out lifetime.
-                h.update_tags(tags.map(|s| s.to_owned()));
+                h.update_tags(tags.map(|s| Cow::Owned(s.into_owned())));
                 self.set_headline(arena, &h.headline(context)?)
             }
         }
@@ -720,7 +719,7 @@ impl Section {
         }
     }
 
-    pub fn clear_tag<'a>(
+    pub fn clear_tag(
         self,
         arena: &mut Arena,
         tag: &str,
@@ -942,7 +941,7 @@ impl Section {
             Some(h) => {
                 let mut org = parse_orgize(h.body());
                 if let Some(id) = get_property_internal("ID", &org)? {
-                    return Ok(id.to_owned());
+                    return Ok(id.clone());
                 }
                 let id = generate_id_internal(&mut org)?;
                 let mut h = h.to_builder();
@@ -1025,45 +1024,27 @@ mod tests {
         assert_eq!(offset, 5);
 
         let (section, offset) = doc.at(&arena, 6).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 0);
 
         let (section, offset) = doc.at(&arena, 7).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 1);
 
         let (section, offset) = doc.at(&arena, 8).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 2);
 
         let (section, offset) = doc.at(&arena, 9).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 3);
 
         let (section, offset) = doc.at(&arena, 10).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 4);
 
         let (section, offset) = doc.at(&arena, 11).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 5);
 
         assert!(doc.at(&arena, 12).is_none());
@@ -1100,38 +1081,23 @@ mod tests {
         assert_eq!(offset, 5);
 
         let (section, offset) = doc.at(&arena, 6).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 0);
 
         let (section, offset) = doc.at(&arena, 7).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 1);
 
         let (section, offset) = doc.at(&arena, 8).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 2);
 
         let (section, offset) = doc.at(&arena, 9).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 3);
 
         let (section, offset) = doc.at(&arena, 10).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 4);
 
         assert!(doc.at(&arena, 11).is_none());
@@ -1172,38 +1138,23 @@ mod tests {
         assert_eq!(offset, 5);
 
         let (section, offset) = doc.at(&arena, 7).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 0);
 
         let (section, offset) = doc.at(&arena, 8).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 1);
 
         let (section, offset) = doc.at(&arena, 9).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 2);
 
         let (section, offset) = doc.at(&arena, 10).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 3);
 
         let (section, offset) = doc.at(&arena, 11).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 4);
 
         assert!(doc.at(&arena, 12).is_none());
@@ -1244,45 +1195,27 @@ mod tests {
         assert_eq!(offset, 5);
 
         let (section, offset) = doc.at(&arena, 7).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 0);
 
         let (section, offset) = doc.at(&arena, 8).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 1);
 
         let (section, offset) = doc.at(&arena, 9).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 2);
 
         let (section, offset) = doc.at(&arena, 10).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 3);
 
         let (section, offset) = doc.at(&arena, 11).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 4);
 
         let (section, offset) = doc.at(&arena, 12).unwrap();
-        assert_eq!(
-            section.id,
-            doc.root.children(&arena).skip(1).next().unwrap().id
-        );
+        assert_eq!(section.id, doc.root.children(&arena).nth(1).unwrap().id);
         assert_eq!(offset, 5);
 
         assert!(doc.at(&arena, 13).is_none());

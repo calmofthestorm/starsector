@@ -10,13 +10,63 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        args:
+          - ""
+          - "--all-features"
+          - "--no-default-features"
+          - "--no-default-features --features headline-parser"
 
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --verbose ${{ matrix.args }}
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --verbose ${{ matrix.args }}
+
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install rustfmt and clippy
+      run: rustup component add rustfmt clippy
+    - name: Format check
+      run: cargo fmt --all -- --check
+    - name: Clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+    - name: Docs build
+      run: cargo doc --all-features --no-deps
+
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install nightly
+      run: rustup toolchain install nightly
+    - name: Install cargo-fuzz
+      run: cargo install cargo-fuzz --locked
+    - name: Fuzz smoke document_parse
+      run: cargo +nightly fuzz run document_parse -- -max_total_time=90
+    - name: Fuzz smoke single_headline
+      run: cargo +nightly fuzz run single_headline -- -max_total_time=90
+    - name: Fuzz smoke timestamp_parse
+      run: cargo +nightly fuzz run timestamp_parse -- -max_total_time=90
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install tarpaulin
+      run: cargo install cargo-tarpaulin --locked
+    - name: Run tarpaulin with threshold
+      run: cargo tarpaulin --all-features --fail-under 87 --out Xml --output-dir target/tarpaulin
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      with:
+        name: tarpaulin-cobertura
+        path: target/tarpaulin/cobertura.xml

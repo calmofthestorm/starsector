@@ -122,7 +122,7 @@ fn tags() {
 
     for tag in invalid {
         assert_eq!(
-            HeadlineBuilder::default().add_tag(*tag).headline(None).ok(),
+            HeadlineBuilder::default().add_tag(tag).headline(None).ok(),
             None
         );
     }
@@ -138,8 +138,8 @@ fn tags() {
             .clone(),
         HeadlineBuilder::default().add_tag("abc_123%").clone(),
         HeadlineBuilder::default()
-            .set_tags(vec!["a", "a"].iter().map(|s| Cow::Borrowed(&**s)))
-            .update_tags(vec!["b", "a", "b"].iter().map(|s| Cow::Borrowed(&**s)))
+            .set_tags(["a", "a"].iter().map(|s| Cow::Borrowed(*s)))
+            .update_tags(["b", "a", "b"].iter().map(|s| Cow::Borrowed(*s)))
             .clone(),
         HeadlineBuilder::default()
             .add_tag("abc_123%")
@@ -265,7 +265,7 @@ fn fuzz() {
             tags.push(choose_tag(rng));
         }
 
-        if !tags.is_empty() && rng.next_u32() % 2 == 0 {
+        if !tags.is_empty() && rng.next_u32().is_multiple_of(2) {
             let t = (rng.next_u32() as usize) % tags.len();
             let t = tags[t];
             tags.push(t);
@@ -320,16 +320,16 @@ fn fuzz() {
             if c == 0 {
                 let c = rng.next_u32() % 10;
                 if c == 0 {
-                    builder.add_tag(&choose_tag(&mut rng));
+                    builder.add_tag(choose_tag(&mut rng));
                 } else if c == 1 {
-                    builder.clear_tag(&choose_tag(&mut rng));
-                    builder.add_tag(&choose_tag(&mut rng));
+                    builder.clear_tag(choose_tag(&mut rng));
+                    builder.add_tag(choose_tag(&mut rng));
                 } else if c == 2 {
-                    builder.add_tag(&choose_tag(&mut rng));
-                    builder.add_tag(&choose_tag(&mut rng));
+                    builder.add_tag(choose_tag(&mut rng));
+                    builder.add_tag(choose_tag(&mut rng));
                 } else if c == 3 {
-                    builder.clear_tag(&choose_tag(&mut rng));
-                    builder.clear_tag(&choose_tag(&mut rng));
+                    builder.clear_tag(choose_tag(&mut rng));
+                    builder.clear_tag(choose_tag(&mut rng));
                 } else if c == 4 {
                     builder.clear_tags();
                 } else if c == 5 {
@@ -344,7 +344,7 @@ fn fuzz() {
                     builder.canonical_tags();
                 }
             } else if c == 1 {
-                builder.commented(rng.next_u32() % 2 == 0);
+                builder.commented(rng.next_u32().is_multiple_of(2));
             } else if c == 2 {
                 let c = rng.next_u32() % 3;
                 if c == 0 {

@@ -1,4 +1,4 @@
-[![Build Status](https://app.travis-ci.com/calmofthestorm/starsector.svg?branch=main)](https://app.travis-ci.com/calmofthestorm/starsector)
+[![CI](https://github.com/calmofthestorm/starsector/actions/workflows/rust.yml/badge.svg)](https://github.com/calmofthestorm/starsector/actions/workflows/rust.yml)
 [![Crates.io](https://img.shields.io/crates/v/starsector.svg)](https://crates.io/crates/starsector)
 [![Document](https://docs.rs/starsector/badge.svg)](https://docs.rs/starsector)
 
@@ -23,11 +23,15 @@ then save, without spurious deltas in the file.
   section a newline is part of).
 
 * With `headline-parser` flag adds a parser/generator for headlines (tags,
-  keyword, priority, planning, etc) that functions on top the structural tree.
+  keyword, priority, comment, planning/timestamps, etc) that functions on top
+  of the structural tree.
 
 * With `orgize-integration` flag, uses
-  [orgize](https://github.com/PoiScript/orgize) to parse/generate properties
-  drawer.
+  [orgize](https://github.com/PoiScript/orgize) to parse/generate property
+  drawer data and ID fields.
+
+* Rich timestamp value API (`Timestamp`, `Point`, `Range`, etc.) for headline
+  planning fields and timestamp parsing/emission.
 
 * Headlines are represented in memory as text, making both parsing and emitting
   very fast, and permitting a two-way mapping between text offset and each
@@ -69,6 +73,7 @@ then save, without spurious deltas in the file.
 # Getting Started
 
 See `examples/edit.rs` for a comprehensive example on parsing and editing.
+You can run it with `cargo run --example edit` (default features).
 
 # Arena
 
@@ -194,7 +199,7 @@ reformatted in a standardized way, but only modified headlines will be affected.
 
 As a convenience, individual changes may be made by calling `set_keyword`,
 `set_priority`, etc on the section. It is also possible to get a `Headline` by
-calling `parse_headline`. This is a value type which provides access to the
+calling `Section::headline`. This is a value type which provides access to the
 headline properties (including the body text). Calling `to_builder` provides a
 `HeadlineBuilder` which may be used to change multiple properties at once,
 before building a new headline by calling `headline` on it. You can then call
@@ -205,10 +210,14 @@ fail.
 
 ## Properties Parser
 
-With `orgize-integration` feature flag (enabled by default), functions that get
-and set properties (in the properties drawer) become available on both `Section` and
-`HeadlineBuilder`. These work similarly to the headline parser, except that they
-rely on [Orgize](https://github.com/PoiScript/orgize) to parse the headline.
+With `orgize-integration` feature flag (enabled by default), property drawer
+helpers (`get_property`, `set_property`, `set_properties`, `generate_id`, etc.)
+become available on both `Section` and `HeadlineBuilder`. These work similarly
+to the headline parser, except that they rely on
+[Orgize](https://github.com/PoiScript/orgize) to parse the headline body.
+
+Planning line support (`SCHEDULED`, `DEADLINE`, `CLOSED`) is provided by the
+headline parser itself and does not require `orgize-integration`.
 
 I'd like to implement my own parser for these as I've done for headlines and
 planning, since this has the potential to reformat the entire headline.

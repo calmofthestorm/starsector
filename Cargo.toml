@@ -1,8 +1,8 @@
 [package]
 name = "starsector"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Alex Roper <alex@aroper.net>"]
-edition = "2021"
+edition = "2024"
 description = "Org mode structural parser/emitter with an emphasis on modularity and avoiding edits unrelated to changes."
 license = "MIT"
 repository = "https://github.com/calmofthestorm/starsector"
@@ -21,28 +21,51 @@ orgize-integration = ["orgize", "headline-parser", "indexmap"]
 [dependencies]
 chrono = { version = "0.4", optional = true }
 hex = "0.4"
-indexmap = { version = "1.9", optional = true}
-indextree = "4.5"
+indexmap = { version = "2.13", optional = true}
+indextree = "4.7"
 iobuffer = "0.2"
-itertools = "0.10"
-lazy_static = { version = "1.4", optional = true}
+itertools = "0.14"
+lazy_static = { version = "1.5", optional = true}
 log = "0.4"
-memchr = "2.5"
+memchr = "2.8"
 nom = { version = "7.1", optional = true }
 orgize = { version = "0.9", optional = true, features = ["chrono", "indexmap"]}
-rand = "0.7.2"
-regex = {version = "1.6", optional = true}
-ropey = "1.5"
+rand = "0.8"
+regex = {version = "1.12", optional = true}
+ropey = "1.6"
 
 [dev-dependencies]
 orgize = { version = "0.9", features = ["chrono", "indexmap"]}
-rand = "0.7.2"
-walkdir = "2.3"
+proptest = "1.6"
+rand = "0.8"
+walkdir = "2.5"
 
 [[example]]
 name = "deltatest"
 test = true
+required-features = ["headline-parser"]
 
 [[example]]
-name = "tester"
-test = true
+name = "edit"
+required-features = ["headline-parser"]
+
+[[example]]
+name = "parse_inputs"
+
+[[example]]
+name = "tree_traversal"
+
+[[example]]
+name = "tree_editing"
+
+[[example]]
+name = "headline_context"
+required-features = ["headline-parser"]
+
+[[example]]
+name = "timestamps"
+required-features = ["headline-parser"]
+
+[[example]]
+name = "properties"
+required-features = ["orgize-integration"]

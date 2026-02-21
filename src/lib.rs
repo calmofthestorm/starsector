@@ -28,6 +28,7 @@ pub use crate::headline::*;
 pub use crate::arena::*;
 pub use crate::errors::*;
 pub use crate::iter::*;
+#[cfg(feature = "orgize-integration")]
 pub(crate) use crate::orgize_util::*;
 pub use crate::ropeext::*;
 pub use crate::tree::*;

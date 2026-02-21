@@ -1,2 +1,2 @@
+#[cfg(feature = "headline-parser")]
 mod headline;
-mod structure;

@@ -1,33 +1,36 @@
 use chrono::{NaiveDate, NaiveTime};
 
 use nom::{
+    Err, IResult,
     branch::alt,
-    bytes::complete::{is_not, tag, take_while1, take_while_m_n},
+    bytes::complete::{is_not, tag, take_while_m_n, take_while1},
     character::complete::{char, digit1, one_of, space1},
     combinator::{map, map_res, opt, verify},
-    error::{make_error, ErrorKind},
+    error::{ErrorKind, make_error},
     sequence::{delimited, pair, preceded, separated_pair, terminated, tuple},
-    Err, IResult,
 };
 
 use crate::headline::*;
 
 fn parse_integer_4(input: &str) -> IResult<&str, u16, ()> {
-    map_res(take_while_m_n(4, 4, |c: char| c.is_ascii_digit()), |num| {
-        u16::from_str_radix(num, 10)
-    })(input)
+    map_res(
+        take_while_m_n(4, 4, |c: char| c.is_ascii_digit()),
+        |num: &str| num.parse::<u16>(),
+    )(input)
 }
 
 fn parse_integer_2(input: &str) -> IResult<&str, u8, ()> {
-    map_res(take_while_m_n(2, 2, |c: char| c.is_ascii_digit()), |num| {
-        u8::from_str_radix(num, 10)
-    })(input)
+    map_res(
+        take_while_m_n(2, 2, |c: char| c.is_ascii_digit()),
+        |num: &str| num.parse::<u8>(),
+    )(input)
 }
 
 fn parse_integer_1_2(input: &str) -> IResult<&str, u8, ()> {
-    map_res(take_while_m_n(1, 2, |c: char| c.is_ascii_digit()), |num| {
-        u8::from_str_radix(num, 10)
-    })(input)
+    map_res(
+        take_while_m_n(1, 2, |c: char| c.is_ascii_digit()),
+        |num: &str| num.parse::<u8>(),
+    )(input)
 }
 
 fn parse_dayname(input: &str) -> IResult<&str, &str, ()> {
@@ -47,8 +50,10 @@ impl Time {
         let (input, hour) = parse_integer_1_2(input)?;
         let (input, _) = tag(":")(input)?;
         let (input, minute) = parse_integer_2(input)?;
-        let time = NaiveTime::from_hms_opt(hour as u32, minute as u32, 0)
-            .ok_or_else(|| Err::Error(make_error(input, ErrorKind::Verify)))?;
+        let time = NaiveTime::from_hms_opt(hour as u32, minute as u32, 0).ok_or_else(|| {
+            let _: () = make_error(input, ErrorKind::Verify);
+            Err::Error(())
+        })?;
         Ok((input, time.into()))
     }
 }
@@ -118,7 +123,7 @@ impl TimeUnit {
 
 impl Interval {
     pub fn parse(input: &str) -> IResult<&str, Interval, ()> {
-        let (input, value) = map_res(digit1, |num| usize::from_str_radix(num, 10))(input)?;
+        let (input, value) = map_res(digit1, |num: &str| num.parse::<usize>())(input)?;
         let (input, unit) = TimeUnit::parse(input)?;
         Ok((input, Interval::new(value, unit)))
     }
@@ -169,10 +174,10 @@ impl Date {
             preceded(char('-'), parse_integer_2),
         ))(input)?;
         let (input, _dayname) = opt(preceded(space1, parse_dayname))(input)?;
-        Ok((
-            input,
-            NaiveDate::from_ymd(year as i32, month as u32, day as u32).into(),
-        ))
+        match NaiveDate::from_ymd_opt(year as i32, month as u32, day as u32) {
+            Some(date) => Ok((input, date.into())),
+            None => Err(nom::Err::Error(())),
+        }
     }
 }
 
@@ -265,10 +270,10 @@ impl Diary<'_> {
 impl Timestamp<'_> {
     pub fn parse(input: &str) -> IResult<&str, Timestamp<'_>, ()> {
         alt((
-            map(Diary::parse, |d| Timestamp::Diary(d)),
-            map(Range::parse, |r| Timestamp::Range(r)),
-            map(TimeRange::parse, |r| Timestamp::TimeRange(r)),
-            map(Point::parse, |p| Timestamp::Point(p)),
+            map(Diary::parse, Timestamp::Diary),
+            map(Range::parse, Timestamp::Range),
+            map(TimeRange::parse, Timestamp::TimeRange),
+            map(Point::parse, Timestamp::Point),
         ))(input)
     }
 }
@@ -289,7 +294,7 @@ mod tests {
             "x:1", "5:1", "00:0", "1:61", "", "5", ":", "-5", "1:-5", ":05", "01:", "-1:5", "161",
             "0161",
         ] {
-            assert!(Time::parse(*bad).is_err());
+            assert!(Time::parse(bad).is_err());
         }
 
         let res = Time::parse("5:55 ").unwrap();
@@ -324,7 +329,7 @@ mod tests {
             "5-5",
             "05:-05:",
         ] {
-            assert!(Times::parse(*bad).is_err());
+            assert!(Times::parse(bad).is_err());
         }
 
         let result = Times::parse("05:05-10:10 ").unwrap();
@@ -358,7 +363,7 @@ mod tests {
             "5-5",
             "05:-05:",
         ] {
-            assert!(Times::parse(*bad).is_err());
+            assert!(Times::parse(bad).is_err());
         }
     }
 
@@ -369,7 +374,7 @@ mod tests {
         assert_eq!(RepeaterMark::parse(".+").unwrap().1, RepeaterMark::Restart);
 
         for bad in &["", ".", "-"] {
-            assert!(RepeaterMark::parse(*bad).is_err());
+            assert!(RepeaterMark::parse(bad).is_err());
         }
 
         let res = RepeaterMark::parse("+ ").unwrap();
@@ -480,7 +485,7 @@ mod tests {
         assert!(Interval::parse("+6h ").is_err());
 
         for bad in &["+++5w", "", "-7m"] {
-            assert!(Repeater::parse(*bad).is_err());
+            assert!(Repeater::parse(bad).is_err());
         }
     }
 
@@ -501,7 +506,7 @@ mod tests {
         assert_eq!(Delay::parse("-6h").unwrap().1, res.1);
 
         for bad in &["---5w", "", "+7m"] {
-            assert!(Delay::parse(*bad).is_err());
+            assert!(Delay::parse(bad).is_err());
         }
     }
 
@@ -581,7 +586,7 @@ mod tests {
         );
         assert_eq!(Date::parse("2020-02-17 Zee").unwrap().1, date(2020, 2, 17));
 
-        assert_eq!(Date::parse("0020-01-10").unwrap().1, date(0020, 1, 10));
+        assert_eq!(Date::parse("0020-01-10").unwrap().1, date(20, 1, 10));
 
         for bad in &[
             " 2020-02-02",
@@ -595,7 +600,7 @@ mod tests {
             "1987-5-29",
             "1987-03-1",
         ] {
-            assert!(Date::parse(*bad).is_err());
+            assert!(Date::parse(bad).is_err());
         }
 
         let res = Date::parse("2020-02-02 ").unwrap();
@@ -628,7 +633,7 @@ mod tests {
 
         for bad in &["", "2020-01-01", "<%%(hi)>", "[2020-01-01 01:00-02:00]"] {
             eprintln!("This {}", bad);
-            assert!(Point::parse(*bad).is_err());
+            assert!(Point::parse(bad).is_err());
         }
 
         let res = Point::parse("<2020-01-01> ").unwrap();
@@ -673,7 +678,7 @@ mod tests {
             "<%%(hi)>",
             "[2020-01-01 01:00-02:00]",
         ] {
-            assert!(Range::parse(*bad).is_err());
+            assert!(Range::parse(bad).is_err());
         }
 
         let res = Range::parse("<2020-01-01>--<2020-02-01> ").unwrap();
@@ -707,7 +712,7 @@ mod tests {
         );
 
         for bad in &["", "<2020-01-01>", "2020-01-01--2021-01-01", "<%%(hi)>"] {
-            assert!(TimeRange::parse(*bad).is_err());
+            assert!(TimeRange::parse(bad).is_err());
         }
 
         let res = TimeRange::parse("<2020-01-01 09:00-10:00> ").unwrap();
@@ -751,7 +756,7 @@ mod tests {
             assert_eq!(Point::parse("<2020-03-01 Zee>").unwrap().1, point);
             assert_eq!(Point::parse("<2020-03-01 >").unwrap().1, point);
             assert_eq!(Point::parse("<2020-03-01 \t>").unwrap().1, point);
-            let time = NaiveTime::from_hms(3, 59, 0);
+            let time = NaiveTime::from_hms_opt(3, 59, 0).unwrap();
             assert_eq!(
                 Point::parse("<2020-03-01 \tFri  3:59>").unwrap().1,
                 point.with_time(Some(time.into()))
@@ -800,7 +805,7 @@ mod tests {
             );
 
             for bad in &["2020-01-01", ""] {
-                assert!(Timestamp::parse(*bad).is_err())
+                assert!(Timestamp::parse(bad).is_err())
             }
 
             let res = Point::parse("<2020-01-01>>").unwrap();

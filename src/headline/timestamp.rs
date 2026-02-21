@@ -5,8 +5,9 @@ use std::fmt::{self, Display, Formatter, Write};
 use ::chrono::{NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 
 /// A timestamp may be active (<> in org-mode) or inactive ([] in org-mode).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Activity {
+    #[default]
     Active,
     Inactive,
 }
@@ -122,11 +123,11 @@ pub enum Timestamp<'a> {
 }
 
 pub trait TimestampExt {
-    fn start_timestamp(&self) -> Option<Timestamp> {
+    fn start_timestamp(&self) -> Option<Timestamp<'_>> {
         self.start_point().map(Into::into)
     }
 
-    fn end_timestamp(&self) -> Option<Timestamp> {
+    fn end_timestamp(&self) -> Option<Timestamp<'_>> {
         self.end_point().map(Into::into)
     }
 
@@ -241,12 +242,10 @@ impl Repeater {
     }
 
     pub fn with_mark(&self, mark: RepeaterMark) -> Repeater {
-        let mark = mark.try_into().map_err(|_| ()).unwrap();
         Repeater { mark, ..*self }
     }
 
     pub fn with_interval(&self, interval: Interval) -> Repeater {
-        let interval = interval.try_into().map_err(|_| ()).unwrap();
         Repeater { interval, ..*self }
     }
 
@@ -345,10 +344,10 @@ impl<'a> Timestamp<'a> {
 
 impl Time {
     pub fn new(hour: u32, minute: u32) -> Time {
-        NaiveTime::from_hms(hour, minute, 0)
-            .try_into()
-            .map_err(|_| ())
-            .unwrap()
+        Time(
+            NaiveTime::from_hms_opt(hour, minute, 0)
+                .expect("Time::new requires a valid hour/minute"),
+        )
     }
 
     pub fn hour(self) -> u8 {
@@ -364,7 +363,7 @@ impl Time {
     }
 
     pub fn with_minute(self, minute: u32) -> Time {
-        Time::new(minute, self.hour().into())
+        Time::new(self.hour().into(), minute)
     }
 }
 
@@ -374,7 +373,7 @@ impl Times {
     }
 
     pub fn end(&self) -> Time {
-        self.0
+        self.1
     }
 
     pub fn with_start(&self, start: Time) -> Times {
@@ -404,7 +403,9 @@ impl TimeSpec {
 
 impl Date {
     pub fn new(year: i32, month: u32, day: u32) -> Date {
-        NaiveDate::from_ymd(year.into(), month.into(), day.into()).into()
+        NaiveDate::from_ymd_opt(year, month, day)
+            .expect("Date::new requires a valid calendar date")
+            .into()
     }
 }
 
@@ -565,7 +566,7 @@ impl TimestampExt for Point {
         self.active
     }
 
-    fn to_timestamp(&self) -> Timestamp {
+    fn to_timestamp(&self) -> Timestamp<'_> {
         self.into()
     }
 
@@ -642,7 +643,7 @@ impl TimestampExt for Range {
     }
 
     fn to_timestamp(&self) -> Timestamp<'static> {
-        Timestamp::Range(self.clone())
+        Timestamp::Range(*self)
     }
 
     fn date(&self) -> Option<Date> {
@@ -683,7 +684,7 @@ impl TimestampExt for TimeRange {
     }
 
     fn to_timestamp(&self) -> Timestamp<'static> {
-        Timestamp::TimeRange(self.clone())
+        Timestamp::TimeRange(*self)
     }
 
     fn date(&self) -> Option<Date> {
@@ -746,7 +747,7 @@ impl TimestampExt for Timestamp<'_> {
         }
     }
 
-    fn to_timestamp(&self) -> Timestamp {
+    fn to_timestamp(&self) -> Timestamp<'_> {
         self.clone()
     }
 
@@ -778,21 +779,15 @@ impl TimestampExt for Timestamp<'_> {
     }
 }
 
-impl Default for Activity {
-    fn default() -> Activity {
-        Activity::Active
+impl From<&Activity> for bool {
+    fn from(val: &Activity) -> Self {
+        *val == Activity::Active
     }
 }
 
-impl Into<bool> for &Activity {
-    fn into(self) -> bool {
-        *self == Activity::Active
-    }
-}
-
-impl Into<bool> for Activity {
-    fn into(self) -> bool {
-        (&self).into()
+impl From<Activity> for bool {
+    fn from(val: Activity) -> Self {
+        (&val).into()
     }
 }
 
@@ -804,7 +799,10 @@ impl From<bool> for Activity {
 
 impl Default for Time {
     fn default() -> Time {
-        Time(NaiveTime::from_num_seconds_from_midnight(0, 0))
+        Time(
+            NaiveTime::from_num_seconds_from_midnight_opt(0, 0)
+                .expect("midnight is always a valid time"),
+        )
     }
 }
 
@@ -816,7 +814,10 @@ impl From<NaiveTime> for Time {
 
 impl From<&NaiveTime> for Time {
     fn from(time: &NaiveTime) -> Time {
-        Time(NaiveTime::from_hms(time.hour(), time.minute(), 0))
+        Time(
+            NaiveTime::from_hms_opt(time.hour(), time.minute(), 0)
+                .expect("hour/minute read from NaiveTime are always valid"),
+        )
     }
 }
 
@@ -909,15 +910,15 @@ impl AsRef<str> for TimeUnit {
     }
 }
 
-impl Into<char> for &TimeUnit {
-    fn into(self) -> char {
-        self.as_ref().chars().next().unwrap()
+impl From<&TimeUnit> for char {
+    fn from(val: &TimeUnit) -> Self {
+        val.as_ref().chars().next().unwrap()
     }
 }
 
-impl Into<char> for TimeUnit {
-    fn into(self) -> char {
-        (&self).into()
+impl From<TimeUnit> for char {
+    fn from(val: TimeUnit) -> Self {
+        (&val).into()
     }
 }
 
@@ -1041,39 +1042,42 @@ mod chrono {
     use super::{Date, Time};
     use ::chrono::*;
 
-    impl Into<NaiveTime> for Time {
-        fn into(self) -> NaiveTime {
-            (&self).into()
+    impl From<Time> for NaiveTime {
+        fn from(val: Time) -> Self {
+            (&val).into()
         }
     }
 
-    impl Into<NaiveTime> for &Time {
-        fn into(self) -> NaiveTime {
-            self.0
+    impl From<&Time> for NaiveTime {
+        fn from(val: &Time) -> Self {
+            val.0
         }
     }
 
-    impl Into<NaiveDate> for Date {
-        fn into(self) -> NaiveDate {
-            (&self).into()
+    impl From<Date> for NaiveDate {
+        fn from(val: Date) -> Self {
+            (&val).into()
         }
     }
 
-    impl Into<NaiveDate> for &Date {
-        fn into(self) -> NaiveDate {
-            self.0
+    impl From<&Date> for NaiveDate {
+        fn from(val: &Date) -> Self {
+            val.0
         }
     }
 
-    impl Into<NaiveDateTime> for Date {
-        fn into(self) -> NaiveDateTime {
-            (&self).into()
+    impl From<Date> for NaiveDateTime {
+        fn from(val: Date) -> Self {
+            (&val).into()
         }
     }
 
-    impl Into<NaiveDateTime> for &Date {
-        fn into(self) -> NaiveDateTime {
-            NaiveDateTime::new(self.into(), NaiveTime::from_hms(0, 0, 0))
+    impl From<&Date> for NaiveDateTime {
+        fn from(val: &Date) -> Self {
+            NaiveDateTime::new(
+                val.into(),
+                NaiveTime::from_hms_opt(0, 0, 0).expect("midnight is always a valid time"),
+            )
         }
     }
 }
@@ -1238,13 +1242,12 @@ impl TryFrom<&Range> for TimeRange {
         if range.start.date == range.end.date
             && range.start.cookie == range.end.cookie
             && range.start.time.is_some()
+            && let Some(end_time) = range.end.time
         {
-            if let Some(end_time) = range.end.time {
-                return Ok(TimeRange {
-                    start: range.start,
-                    end_time,
-                });
-            }
+            return Ok(TimeRange {
+                start: range.start,
+                end_time,
+            });
         }
         Err(())
     }
@@ -1359,5 +1362,19 @@ mod tests {
             .as_str(),
             "<2018-09-02 08:17-18:03 +3y>"
         );
+    }
+
+    #[test]
+    fn test_time_with_minute_preserves_hour() {
+        let t = Time::new(9, 18).with_minute(42);
+        assert_eq!(t.hour(), 9);
+        assert_eq!(t.minute(), 42);
+    }
+
+    #[test]
+    fn test_times_end_returns_end_time() {
+        let times = Times(Time::new(8, 17), Time::new(18, 3));
+        assert_eq!(times.start(), Time::new(8, 17));
+        assert_eq!(times.end(), Time::new(18, 3));
     }
 }

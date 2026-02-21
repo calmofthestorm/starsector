@@ -29,10 +29,10 @@ impl Display for StructureError {
 }
 
 impl Error for StructureError {
-    fn description(&self) -> &str {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            StructureError::IndextreeError(e) => e.description(),
-            StructureError::LevelError => "LevelError",
+            StructureError::IndextreeError(e) => Some(e),
+            StructureError::LevelError => None,
         }
     }
 }
@@ -59,16 +59,4 @@ impl Display for HeadlineError {
 }
 
 #[cfg(feature = "headline-parser")]
-impl Error for HeadlineError {
-    fn description(&self) -> &str {
-        match self {
-            HeadlineError::NonEquivalentReparseError => "NonEquivalentReparseError",
-            HeadlineError::InvalidTagsError => "InvalidTagsError",
-            HeadlineError::InvalidPriorityError => "InvalidPriorityError",
-            HeadlineError::InvalidBodyError => "InvalidBodyError",
-            HeadlineError::InvalidLevelError => "InvalidLevelError",
-            HeadlineError::InvalidKeywordError => "InvalidKeywordError",
-            HeadlineError::InvalidHeadlineError => "InvalidHeadlineError",
-        }
-    }
-}
+impl Error for HeadlineError {}

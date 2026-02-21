@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
+#[cfg(feature = "orgize-integration")]
 use std::io::Read;
 
 use itertools::Itertools;
@@ -89,7 +90,7 @@ impl HeadlineBuilder {
                 if !tag_str.is_empty() {
                     tag_str.push(':');
                 }
-                tag_str.push_str(&*tag);
+                tag_str.push_str(&tag);
                 if tag.is_empty() || !tag_set.insert(tag) {
                     tag_str.truncate(ck);
                 }
@@ -227,7 +228,7 @@ impl HeadlineBuilder {
     pub fn generate_id(&mut self) -> Result<Cow<'static, str>, crate::errors::HeadlineError> {
         let mut org = parse_orgize(&self.0.body);
         if let Some(id) = get_property_internal("ID", &org)? {
-            return Ok(id.to_owned());
+            return Ok(id.clone());
         }
         let id = generate_id_internal(&mut org)?;
         self.0.body = emit_orgize(&org);
@@ -237,12 +238,14 @@ impl HeadlineBuilder {
 
 // We don't need to give Orgize a non-default context because we do not use it
 // to parse the stars line itself.
+#[cfg(feature = "orgize-integration")]
 pub(crate) fn parse_orgize(body: &Rope) -> orgize::Org<'static> {
     // FIXME: Limit to planning and drawer. That way it won't mess up other
     // formatting. Do keep in mind children are safe.
     orgize::Org::parse_string(format!("* a\n{}", body))
 }
 
+#[cfg(feature = "orgize-integration")]
 pub(crate) fn emit_orgize(org: &orgize::Org) -> Rope {
     // FIXME: Limit to planning and drawer. That way it won't mess up other
     // formatting. Do keep in mind children are safe.
@@ -252,7 +255,7 @@ pub(crate) fn emit_orgize(org: &orgize::Org) -> Rope {
     iob.read_full_line(b'\n').unwrap();
     iob.read_to_string(&mut s).unwrap();
 
-    if s.chars().last() == Some('\n') {
+    if s.ends_with('\n') {
         s.pop();
     }
 
@@ -261,8 +264,10 @@ pub(crate) fn emit_orgize(org: &orgize::Org) -> Rope {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "orgize-integration")]
     use super::*;
 
+    #[cfg(feature = "orgize-integration")]
     #[test]
     fn test_properties() {
         let con = crate::headline::parser::Context::default();
@@ -286,6 +291,7 @@ mod tests {
         assert_eq!(p.len(), 3);
     }
 
+    #[cfg(feature = "orgize-integration")]
     #[test]
     fn test_parse_emit() {
         let a = Rope::from("* Hello");
